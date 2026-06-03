@@ -1,0 +1,14 @@
+{
+  "config_hash": "sha256:91530cf4e0caa3867437c99fd7a05f7ceabf30c91cf9c75d10f5508237b8bf80",
+  "config_snapshot": {
+    "framework": "nextjs",
+    "tier": "standard",
+    "version_at_init": "3.2.1"
+  },
+  "created_at": "2026-06-03T15:18:19.052746+00:00",
+  "last_audit": null,
+  "last_drift_check": null,
+  "last_refresh": null,
+  "last_retro": null,
+  "schema_version": 1
+}

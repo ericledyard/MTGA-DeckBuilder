@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo *)",
+      "Bash(pip install *)",
+      "Bash(pip3 install *)",
+      "Bash(/Users/ericledyard/Library/Python/3.9/bin/cc-rig --help)"
+    ]
+  }
+}

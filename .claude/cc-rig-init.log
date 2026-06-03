@@ -1,0 +1,125 @@
+
+Generating project files...
+
+  + .cc-rig.json
+  + .claude/.cc-rig-manifest.json
+  + .claude/agents/architect.md
+  + .claude/agents/build-fixer.md
+  + .claude/agents/code-reviewer.md
+  + .claude/agents/e2e-runner.md
+  + .claude/agents/explorer.md
+  + .claude/agents/refactorer.md
+  + .claude/agents/test-writer.md
+  + .claude/cc-rig-state.json
+  + .claude/commands/assumptions.md
+  + .claude/commands/cc-rig.md
+  + .claude/commands/fix-issue.md
+  + .claude/commands/learn.md
+  + .claude/commands/plan.md
+  + .claude/commands/refactor.md
+  + .claude/commands/remember.md
+  + .claude/commands/research.md
+  + .claude/commands/review.md
+  + .claude/commands/test.md
+  + .claude/hooks/block-env.sh
+  + .claude/hooks/block-main.sh
+  + .claude/hooks/block-rm-rf.sh
+  + .claude/hooks/format.sh
+  + .claude/hooks/lint.sh
+  + .claude/hooks/memory-precompact.sh
+  + .claude/hooks/session-context.sh
+  + .claude/hooks/stop-validator.sh
+  + .claude/hooks/typecheck.sh
+  + .claude/rules/frontend.md
+  + .claude/rules/tests.md
+  + .claude/settings.json
+  + .claude/settings.local.json
+  + .claude/skills/finishing-a-development-branch/SKILL.md
+  + .claude/skills/frontend-design/SKILL.md
+  + .claude/skills/github-actions-generator/SKILL.md
+  + .claude/skills/github-actions-generator/assets/templates/workflow/basic_workflow.yml
+  + .claude/skills/github-actions-generator/assets/templates/workflow/reusable_workflow.yml
+  + .claude/skills/github-actions-generator/examples/README.md
+  + .claude/skills/github-actions-generator/examples/actions/setup-node-cached/action.yml
+  + .claude/skills/github-actions-generator/examples/caching/docker-buildkit.yml
+  + .claude/skills/github-actions-generator/examples/security/dependency-review.yml
+  + .claude/skills/github-actions-generator/examples/security/sbom-attestation.yml
+  + .claude/skills/github-actions-generator/examples/triggers/chatops-commands.yml
+  + .claude/skills/github-actions-generator/examples/triggers/repository-dispatch.yml
+  + .claude/skills/github-actions-generator/examples/triggers/workflow-orchestration.yml
+  + .claude/skills/github-actions-generator/examples/workflows/docker-build-push.yml
+  + .claude/skills/github-actions-generator/examples/workflows/go-ci.yml
+  + .claude/skills/github-actions-generator/examples/workflows/monorepo-ci.yml
+  + .claude/skills/github-actions-generator/examples/workflows/multi-environment-deploy.yml
+  + .claude/skills/github-actions-generator/examples/workflows/nodejs-ci.yml
+  + .claude/skills/github-actions-generator/examples/workflows/python-ci.yml
+  + .claude/skills/github-actions-generator/examples/workflows/scheduled-tasks.yml
+  + .claude/skills/github-actions-generator/references/advanced-triggers.md
+  + .claude/skills/github-actions-generator/references/best-practices.md
+  + .claude/skills/github-actions-generator/references/common-actions.md
+  + .claude/skills/github-actions-generator/references/custom-actions.md
+  + .claude/skills/github-actions-generator/references/expressions-and-contexts.md
+  + .claude/skills/github-actions-generator/references/modern-features.md
+  + .claude/skills/github-actions-generator/scripts/test_generator.sh
+  + .claude/skills/insecure-defaults/SKILL.md
+  + .claude/skills/next-best-practices/SKILL.md
+  + .claude/skills/owasp-security/SKILL.md
+  + .claude/skills/project-patterns/SKILL.md
+  + .claude/skills/receiving-code-review/SKILL.md
+  + .claude/skills/requesting-code-review/SKILL.md
+  + .claude/skills/requesting-code-review/code-reviewer.md
+  + .claude/skills/tailwind-design-system/SKILL.md
+  + .claude/skills/vercel-react-best-practices/SKILL.md
+  + .claude/skills/web-design-guidelines/SKILL.md
+  + .claude/skills/webapp-testing/SKILL.md
+  + .github/workflows/claude.yml
+  + .mcp.json
+  + CLAUDE.local.md
+  + CLAUDE.md
+  + PLAYBOOK.md
+  + agent_docs/architecture.md
+  + agent_docs/cache-friendly-workflow.md
+  + agent_docs/conventions.md
+  + agent_docs/deployment.md
+  + agent_docs/testing.md
+  + memory/MEMORY-README.md
+  + memory/decisions.md
+  + memory/gotchas.md
+  + memory/patterns.md
+  + memory/people.md
+  + memory/session-log.md
+
+  87 files generated.
+
+
+Validating output...
+  ! CLAUDE.md has 128 lines (target: 97)
+  ! Placeholder content found: FILL IN
+  + All checks passed.
+
+  Config saved: /Users/ericledyard/.cc-rig/configs/MTGA-DeckBuilder.json
+
+Needs your attention
+
+  ! .claude/skills/project-patterns/SKILL.md — add your team's conventions
+
+
+Generated 87 files for standard + nextjs
+
+  Your workflow:  /plan -> implement -> /review -> /test -> commit
+  Your agents:    7
+  Your plugins:   8
+  Your hooks:     9
+  Your commands:  9
+  Cache savings:  static-first CLAUDE.md + 4 cache guardrails
+
+  In any session, /cc-rig guides you:
+    /cc-rig          dashboard with your workflow and quick recipes
+    /cc-rig recipes  step-by-step guides for bugs, features, refactors
+    /cc-rig savings  how much cc-rig saved you on tokens
+
+  Next steps:
+    cd /Users/ericledyard/MTGA-DeckBuilder
+    git add .claude/ CLAUDE.md PLAYBOOK.md .mcp.json .cc-rig.json && git commit -m 'Add Claude Code config'
+    claude          # start Claude Code
+    cc-rig doctor   # check project health

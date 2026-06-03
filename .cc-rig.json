@@ -1,0 +1,246 @@
+{
+  "project_name": "MTGA-DeckBuilder",
+  "project_desc": "",
+  "output_dir": "/Users/ericledyard/MTGA-DeckBuilder",
+  "language": "typescript",
+  "framework": "nextjs",
+  "project_type": "web_fullstack",
+  "test_cmd": "npm test",
+  "lint_cmd": "npm run lint",
+  "format_cmd": "npx prettier --write",
+  "typecheck_cmd": "npx tsc --noEmit",
+  "build_cmd": "next build",
+  "source_dir": "app",
+  "test_dir": "src/__tests__",
+  "workflow": "standard",
+  "agents": [
+    "code-reviewer",
+    "test-writer",
+    "explorer",
+    "architect",
+    "refactorer",
+    "build-fixer",
+    "e2e-runner"
+  ],
+  "commands": [
+    "fix-issue",
+    "review",
+    "test",
+    "plan",
+    "research",
+    "learn",
+    "assumptions",
+    "remember",
+    "refactor"
+  ],
+  "hooks": [
+    "format",
+    "lint",
+    "typecheck",
+    "block-rm-rf",
+    "block-env",
+    "block-main",
+    "session-context",
+    "stop-validator",
+    "memory-precompact"
+  ],
+  "features": {
+    "memory": true,
+    "spec_workflow": false,
+    "gtd": false,
+    "worktrees": false,
+    "agents_md": false,
+    "github_actions": true
+  },
+  "permission_mode": "permissive",
+  "harness": {
+    "level": "none",
+    "task_tracking": false,
+    "budget_awareness": false,
+    "verification_gates": false,
+    "autonomy_loop": false,
+    "ralph_loop_plugin": false,
+    "context_awareness": false,
+    "session_telemetry": false,
+    "output_compression": false,
+    "budget_per_run_tokens": null,
+    "budget_warn_at_percent": 80,
+    "require_tests_pass": true,
+    "require_lint_pass": true,
+    "max_iterations": 20,
+    "checkpoint_commits": true,
+    "if_blocked": "stop"
+  },
+  "recommended_skills": [
+    {
+      "name": "vercel-react-best-practices",
+      "sdlc_phase": "coding",
+      "source": "vercel-labs/agent-skills",
+      "install": "npx skills add vercel-labs/agent-skills --skill vercel-react-best-practices",
+      "description": "React best practices from Vercel"
+    },
+    {
+      "name": "next-best-practices",
+      "sdlc_phase": "coding",
+      "source": "vercel-labs/next-skills",
+      "install": "npx skills add vercel-labs/next-skills --skill next-best-practices",
+      "description": "Next.js App Router, RSC, caching patterns"
+    },
+    {
+      "name": "web-design-guidelines",
+      "sdlc_phase": "coding",
+      "source": "vercel-labs/agent-skills",
+      "install": "npx skills add vercel-labs/agent-skills --skill web-design-guidelines",
+      "description": "Web design guidelines and UI patterns"
+    },
+    {
+      "name": "frontend-design",
+      "sdlc_phase": "coding",
+      "source": "anthropics/skills",
+      "install": "npx skills add anthropics/skills --skill frontend-design",
+      "description": "Frontend design patterns from Anthropic"
+    },
+    {
+      "name": "tailwind-design-system",
+      "sdlc_phase": "coding",
+      "source": "wshobson/agents",
+      "install": "npx skills add wshobson/agents --skill tailwind-design-system",
+      "description": "Tailwind CSS v4 design system"
+    },
+    {
+      "name": "webapp-testing",
+      "sdlc_phase": "testing",
+      "source": "anthropics/skills",
+      "install": "npx skills add anthropics/skills --skill webapp-testing",
+      "description": "Web application testing patterns from Anthropic"
+    },
+    {
+      "name": "github-actions-generator",
+      "sdlc_phase": "devops",
+      "source": "akin-ozer/cc-devops-skills",
+      "install": "npx skills add akin-ozer/cc-devops-skills --skill github-actions-generator",
+      "description": "GitHub Actions CI/CD pipeline generation"
+    },
+    {
+      "name": "owasp-security",
+      "sdlc_phase": "security",
+      "source": "agamm/claude-code-owasp",
+      "install": "curl -sL https://raw.githubusercontent.com/agamm/claude-code-owasp/main/.claude/skills/owasp-security/SKILL.md -o .claude/skills/owasp-security/SKILL.md --create-dirs",
+      "description": "OWASP Top 10:2025, ASVS 5.0, language-specific security"
+    },
+    {
+      "name": "insecure-defaults",
+      "sdlc_phase": "security",
+      "source": "trailofbits/skills",
+      "install": "npx skills add trailofbits/skills --skill insecure-defaults",
+      "description": "Detect hardcoded credentials, fail-open security patterns"
+    },
+    {
+      "name": "requesting-code-review",
+      "sdlc_phase": "review",
+      "source": "obra/superpowers",
+      "install": "npx skills add obra/superpowers --skill requesting-code-review",
+      "description": "Pre-review checklist, severity reporting"
+    },
+    {
+      "name": "receiving-code-review",
+      "sdlc_phase": "review",
+      "source": "obra/superpowers",
+      "install": "npx skills add obra/superpowers --skill receiving-code-review",
+      "description": "Guides responding to review feedback"
+    },
+    {
+      "name": "finishing-a-development-branch",
+      "sdlc_phase": "devops",
+      "source": "obra/superpowers",
+      "install": "npx skills add obra/superpowers --skill finishing-a-development-branch",
+      "description": "Merge/PR decisions, branch cleanup"
+    }
+  ],
+  "recommended_plugins": [
+    {
+      "name": "typescript-lsp",
+      "marketplace": "claude-plugins-official",
+      "category": "lsp",
+      "description": "TypeScript diagnostics and go-to-definition",
+      "requires_binary": "typescript-language-server",
+      "replaces_mcp": ""
+    },
+    {
+      "name": "github",
+      "marketplace": "claude-plugins-official",
+      "category": "integration",
+      "description": "GitHub integration (PRs, issues, actions)",
+      "requires_binary": "",
+      "replaces_mcp": "github"
+    },
+    {
+      "name": "vercel",
+      "marketplace": "claude-plugins-official",
+      "category": "integration",
+      "description": "Vercel deployment and project management",
+      "requires_binary": "",
+      "replaces_mcp": ""
+    },
+    {
+      "name": "frontend-design",
+      "marketplace": "claude-plugins-official",
+      "category": "workflow",
+      "description": "Frontend design guidance and component patterns",
+      "requires_binary": "",
+      "replaces_mcp": ""
+    },
+    {
+      "name": "playwright",
+      "marketplace": "claude-plugins-official",
+      "category": "integration",
+      "description": "Browser automation and end-to-end testing",
+      "requires_binary": "",
+      "replaces_mcp": ""
+    },
+    {
+      "name": "stripe",
+      "marketplace": "claude-plugins-official",
+      "category": "integration",
+      "description": "Stripe payment processing and webhook management",
+      "requires_binary": "",
+      "replaces_mcp": ""
+    },
+    {
+      "name": "commit-commands",
+      "marketplace": "claude-plugins-official",
+      "category": "workflow",
+      "description": "Smart commit message generation and staging",
+      "requires_binary": "",
+      "replaces_mcp": ""
+    },
+    {
+      "name": "code-review",
+      "marketplace": "claude-plugins-official",
+      "category": "workflow",
+      "description": "Automated code review with inline comments",
+      "requires_binary": "",
+      "replaces_mcp": ""
+    }
+  ],
+  "default_mcps": [
+    "playwright"
+  ],
+  "skill_packs": [],
+  "claude_plan": "pro",
+  "model_overrides": {
+    "architect": "sonnet",
+    "pr-reviewer": "sonnet",
+    "pm-spec": "sonnet",
+    "security-auditor": "sonnet",
+    "explorer": "sonnet"
+  },
+  "process_pack": "",
+  "process_skills": [],
+  "workflow_source": "cc-rig",
+  "workflow_source_url": "",
+  "cc_rig_version": "3.2.1",
+  "created_at": "2026-06-03T15:18:05.472791+00:00",
+  "template_preset": "nextjs",
+  "workflow_preset": "standard"
+}
