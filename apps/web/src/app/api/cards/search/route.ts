@@ -1,5 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@mtga/db";
+import type { Database } from "@mtga/db";
+
+type MtgFormat = Database["public"]["Enums"]["mtg_format"];
+const VALID_FORMATS = new Set<MtgFormat>([
+  "standard",
+  "alchemy",
+  "historic",
+  "brawl",
+  "timeless",
+  "pioneer",
+  "modern",
+  "legacy",
+  "vintage",
+  "commander",
+  "pauper",
+]);
 
 export const runtime = "nodejs";
 
@@ -30,13 +46,17 @@ export async function GET(req: NextRequest) {
     query = query.eq("available_on_arena", true);
   }
 
-  if (format) {
+  const validFormat = VALID_FORMATS.has(format as MtgFormat)
+    ? (format as MtgFormat)
+    : null;
+
+  if (validFormat) {
     // Join card_legalities to filter legal cards in format
     // Supabase doesn't support joins in .from() directly — use rpc or filter via oracle_id subquery
     const { data: legalOracles } = await supabase
       .from("card_legalities")
       .select("oracle_id")
-      .eq("format", format)
+      .eq("format", validFormat)
       .eq("status", "legal");
 
     const oracleIds = (legalOracles ?? []).map(
