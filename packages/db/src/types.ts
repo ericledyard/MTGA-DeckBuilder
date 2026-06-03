@@ -380,6 +380,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      search_cards: {
+        Args: {
+          p_arena_only?: boolean
+          p_format?: string
+          p_limit?: number
+          p_query?: string
+        }
+        Returns: {
+          available_on_arena: boolean
+          id: string
+          image_uri_art_crop: string
+          image_uri_normal: string
+          is_alchemy: boolean
+          mana_cost: string
+          name: string
+          oracle_id: string
+          rarity: Database["public"]["Enums"]["card_rarity"]
+          set_code: string
+          set_name: string
+          type_line: string
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
