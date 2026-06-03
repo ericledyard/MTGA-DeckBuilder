@@ -1,11 +1,18 @@
 /**
  * Scryfall bulk data sync script.
- * Downloads default_cards + oracle_cards bulk JSON from Scryfall and upserts
- * into Supabase. Run with: pnpm tsx scripts/sync-scryfall.ts
+ * Downloads default_cards bulk JSON from Scryfall and upserts into Supabase.
+ * Streams the file to disk first to avoid Node's string length limit (~500MB).
+ * Run with: pnpm tsx scripts/sync-scryfall.ts
  *
  * Env required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
+import { createWriteStream, createReadStream } from "node:fs";
+import { unlink } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import streamArray from "stream-json/streamers/stream-array";
 import { createServiceClient } from "../packages/db/src/client";
 
 const SCRYFALL_BULK_INDEX = "https://api.scryfall.com/bulk-data";
@@ -78,21 +85,44 @@ function getImageUris(card: ScryfallCard) {
   };
 }
 
-async function syncCards(downloadUri: string) {
-  const supabase = createServiceClient();
-  console.log(`Downloading card data from ${downloadUri}…`);
-
+async function downloadToFile(downloadUri: string, destPath: string) {
   const res = await fetch(downloadUri, {
     headers: {
       "User-Agent": "MTGADeckBuilder/1.0 (contact: ledyard111@gmail.com)",
     },
   });
-  const cards: ScryfallCard[] = (await res.json()) as ScryfallCard[];
-  console.log(`Loaded ${cards.length} cards.`);
+  if (!res.ok || !res.body)
+    throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+  const dest = createWriteStream(destPath);
+  // @ts-expect-error — Web ReadableStream → Node stream pipeline
+  await pipeline(res.body, dest);
+}
 
-  // Upsert sets first
+function streamCards(filePath: string): AsyncIterable<ScryfallCard> {
+  const stream = streamArray.withParserAsStream();
+  createReadStream(filePath).pipe(stream);
+  return {
+    [Symbol.asyncIterator]() {
+      return (async function* () {
+        for await (const { value } of stream) {
+          yield value as ScryfallCard;
+        }
+      })();
+    },
+  };
+}
+
+async function syncCards(downloadUri: string) {
+  const supabase = createServiceClient();
+  const tmpFile = join(tmpdir(), `scryfall-cards-${Date.now()}.json`);
+
+  console.log(`Downloading card data from ${downloadUri}…`);
+  await downloadToFile(downloadUri, tmpFile);
+  console.log("Download complete. Processing cards…");
+
+  // Pass 1: collect unique sets (small — ~1000 entries)
   const setsMap = new Map<string, object>();
-  for (const card of cards) {
+  for await (const card of streamCards(tmpFile)) {
     if (!setsMap.has(card.set)) {
       setsMap.set(card.set, {
         code: card.set,
@@ -111,15 +141,36 @@ async function syncCards(downloadUri: string) {
   }
   console.log(`Upserted ${setRows.length} sets.`);
 
-  // Upsert cards in batches
+  // Pass 2: stream cards + legalities in batches
   let cardCount = 0;
-  const legalityRows: object[] = [];
+  let legalityCount = 0;
+  let cardBatch: object[] = [];
+  let legalityBatch: object[] = [];
+  const seenOracles = new Set<string>();
+  const updatedAt = new Date().toISOString();
 
-  for (let i = 0; i < cards.length; i += BATCH_SIZE) {
-    const batch = cards.slice(i, i + BATCH_SIZE);
-    const images = batch.map(getImageUris);
+  const flushCards = async () => {
+    if (cardBatch.length === 0) return;
+    const { error } = await supabase
+      .from("cards")
+      .upsert(cardBatch, { onConflict: "scryfall_id" });
+    if (error) console.error("Card upsert error:", error.message);
+    cardBatch = [];
+  };
 
-    const cardRows = batch.map((c, j) => ({
+  const flushLegalities = async () => {
+    if (legalityBatch.length === 0) return;
+    const { error } = await supabase
+      .from("card_legalities")
+      .upsert(legalityBatch, { onConflict: "oracle_id,format" });
+    if (error) console.error("Legality upsert error:", error.message);
+    legalityCount += legalityBatch.length;
+    legalityBatch = [];
+  };
+
+  for await (const c of streamCards(tmpFile)) {
+    const imgs = getImageUris(c);
+    cardBatch.push({
       scryfall_id: c.id,
       oracle_id: c.oracle_id,
       name: c.name,
@@ -138,49 +189,36 @@ async function syncCards(downloadUri: string) {
       rarity: c.rarity,
       available_on_arena: c.games.includes("arena"),
       is_alchemy: isAlchemy(c),
-      image_uri_normal: images[j].normal,
-      image_uri_large: images[j].large,
-      image_uri_art_crop: images[j].art_crop,
+      image_uri_normal: imgs.normal,
+      image_uri_large: imgs.large,
+      image_uri_art_crop: imgs.art_crop,
       artist: c.artist ?? null,
       flavor_text: c.flavor_text ?? null,
       digital: c.digital,
       scryfall_uri: c.scryfall_uri,
-      updated_at: new Date().toISOString(),
-    }));
+      updated_at: updatedAt,
+    });
 
-    const { error } = await supabase
-      .from("cards")
-      .upsert(cardRows, { onConflict: "scryfall_id" });
-    if (error) console.error(`Card upsert error at batch ${i}:`, error.message);
-
-    // Collect legality rows (deduplicated by oracle_id)
-    const seenOracles = new Set<string>();
-    for (const c of batch) {
-      if (seenOracles.has(c.oracle_id)) continue;
+    if (!seenOracles.has(c.oracle_id)) {
       seenOracles.add(c.oracle_id);
       for (const [format, status] of Object.entries(c.legalities)) {
-        legalityRows.push({ oracle_id: c.oracle_id, format, status });
+        if (format === "future") continue; // Scryfall preview format, not in our enum
+        legalityBatch.push({ oracle_id: c.oracle_id, format, status });
       }
     }
 
-    cardCount += batch.length;
-    if (cardCount % 5000 === 0)
-      console.log(`  ${cardCount}/${cards.length} cards processed…`);
+    cardCount++;
+    if (cardBatch.length >= BATCH_SIZE) await flushCards();
+    if (legalityBatch.length >= BATCH_SIZE) await flushLegalities();
+    if (cardCount % 5000 === 0) console.log(`  ${cardCount} cards processed…`);
   }
 
-  // Upsert legalities
-  for (let i = 0; i < legalityRows.length; i += BATCH_SIZE) {
-    const { error } = await supabase
-      .from("card_legalities")
-      .upsert(legalityRows.slice(i, i + BATCH_SIZE), {
-        onConflict: "oracle_id,format",
-      });
-    if (error)
-      console.error(`Legality upsert error at batch ${i}:`, error.message);
-  }
+  await flushCards();
+  await flushLegalities();
 
+  await unlink(tmpFile);
   console.log(
-    `Done. ${cardCount} cards and ${legalityRows.length} legality rows synced.`,
+    `Done. ${cardCount} cards and ${legalityCount} legality rows synced.`,
   );
 }
 

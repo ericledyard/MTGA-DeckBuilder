@@ -9,6 +9,9 @@
     "clean": "turbo run clean"
   },
   "devDependencies": {
+    "@types/stream-json": "^1.7.8",
+    "stream-chain": "^4.2.2",
+    "stream-json": "^3.3.0",
     "tsx": "^4.22.4",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2"
