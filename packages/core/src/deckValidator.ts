@@ -1,0 +1,201 @@
+import type { Deck, DeckCard, Format } from "./types/card";
+
+export interface ValidationError {
+  type:
+    | "deck_size"
+    | "sideboard_size"
+    | "card_count"
+    | "singleton"
+    | "format_illegal"
+    | "arena_unavailable";
+  message: string;
+  cardName?: string;
+}
+
+interface FormatRules {
+  minDeckSize: number;
+  maxDeckSize: number | null;
+  maxSideboardSize: number;
+  maxCopies: number; // 4 for most, 1 for singleton formats
+  singleton: boolean;
+  requiresCommander: boolean;
+}
+
+const FORMAT_RULES: Record<Format, FormatRules> = {
+  standard: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  alchemy: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  historic: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  timeless: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  pioneer: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  modern: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  legacy: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  vintage: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  pauper: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  brawl: {
+    minDeckSize: 60,
+    maxDeckSize: 60,
+    maxSideboardSize: 0,
+    maxCopies: 1,
+    singleton: true,
+    requiresCommander: true,
+  },
+  commander: {
+    minDeckSize: 100,
+    maxDeckSize: 100,
+    maxSideboardSize: 0,
+    maxCopies: 1,
+    singleton: true,
+    requiresCommander: true,
+  },
+};
+
+// Basic lands that are exempt from copy limits
+const BASIC_LANDS = new Set([
+  "Plains",
+  "Island",
+  "Swamp",
+  "Mountain",
+  "Forest",
+  "Wastes",
+  "Snow-Covered Plains",
+  "Snow-Covered Island",
+  "Snow-Covered Swamp",
+  "Snow-Covered Mountain",
+  "Snow-Covered Forest",
+]);
+
+export function validateDeckStructure(deck: Deck): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const rules = FORMAT_RULES[deck.format];
+
+  const mainCards = deck.cards.filter((c) => !c.isSideboard && !c.isCompanion);
+  const sideCards = deck.cards.filter((c) => c.isSideboard);
+
+  const mainCount = mainCards.reduce((sum, c) => sum + c.quantity, 0);
+  const sideCount = sideCards.reduce((sum, c) => sum + c.quantity, 0);
+
+  if (mainCount < rules.minDeckSize) {
+    errors.push({
+      type: "deck_size",
+      message: `Deck must have at least ${rules.minDeckSize} cards (currently ${mainCount})`,
+    });
+  }
+  if (rules.maxDeckSize && mainCount > rules.maxDeckSize) {
+    errors.push({
+      type: "deck_size",
+      message: `Deck must have exactly ${rules.maxDeckSize} cards (currently ${mainCount})`,
+    });
+  }
+  if (sideCount > rules.maxSideboardSize) {
+    errors.push({
+      type: "sideboard_size",
+      message: `Sideboard can have at most ${rules.maxSideboardSize} cards (currently ${sideCount})`,
+    });
+  }
+
+  // Copy count validation
+  const allCards = deck.cards.filter((c) => !c.isCompanion);
+  const countByName = new Map<string, number>();
+  for (const card of allCards) {
+    countByName.set(
+      card.name,
+      (countByName.get(card.name) ?? 0) + card.quantity,
+    );
+  }
+  for (const [name, count] of countByName) {
+    if (!BASIC_LANDS.has(name) && count > rules.maxCopies) {
+      errors.push({
+        type: rules.singleton ? "singleton" : "card_count",
+        message: rules.singleton
+          ? `${name} appears ${count} times — ${deck.format} is a singleton format`
+          : `${name} appears ${count} times — maximum is ${rules.maxCopies}`,
+        cardName: name,
+      });
+    }
+  }
+
+  return errors;
+}
+
+export function validateCardCopies(
+  cards: DeckCard[],
+  format: Format,
+): ValidationError[] {
+  const rules = FORMAT_RULES[format];
+  const errors: ValidationError[] = [];
+  for (const card of cards) {
+    if (!BASIC_LANDS.has(card.name) && card.quantity > rules.maxCopies) {
+      errors.push({
+        type: rules.singleton ? "singleton" : "card_count",
+        message: rules.singleton
+          ? `${card.name} — ${format} is singleton`
+          : `${card.name}: max ${rules.maxCopies} copies`,
+        cardName: card.name,
+      });
+    }
+  }
+  return errors;
+}
