@@ -4,6 +4,7 @@ _Last updated: 2026-06-03_
 _Branch: phase1/foundation_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
+_Production URL: https://mtga-deckbuilder.vercel.app_
 
 ---
 
@@ -47,32 +48,31 @@ Full-featured MTG Arena deck management platform:
 - [x] `todo.md` project tracker created (this file)
 - [x] Memory files created: project_status.md, project_stack.md, gotchas_and_rules.md
 - [x] `/endsession` skill created at `.claude/skills/endsession/SKILL.md`
+- [x] `/resume` skill created at `.claude/skills/resume/SKILL.md`
 
-### ✅ Phase 1 — Foundation (COMPLETE — needs Supabase setup by user)
+### ✅ Phase 1 — Foundation (COMPLETE — live in production)
 
 - [x] Monorepo: pnpm workspaces, turbo.json, tsconfig.base.json
 - [x] `packages/core`: Card/Deck/DeckCard types, format legality helpers, deck validator, untapped.gg parser, MTGA export parser/generator
-- [x] `packages/db`: Supabase browser + service client, full schema migration (001_initial_schema.sql), placeholder types (to be replaced by `supabase gen types`)
+- [x] `packages/db`: Supabase browser + service client, full schema migration (001_initial_schema.sql), real generated types
 - [x] `packages/db/migrations/001_initial_schema.sql`: All tables with RLS — cards, sets, card_legalities, card_rulings, user_collections, decks, deck_cards, rules_documents, format_banlists
+- [x] `packages/db/migrations/002_search_cards_rpc.sql`: `search_cards` SQL function (EXISTS join, no PostgREST row-limit issue)
 - [x] `apps/web`: Next.js app shell, NavBar, home page, card browser page, CardGrid + CardSearchFilters components
-- [x] `apps/web/src/app/api/cards/search/route.ts`: Card search API (name, format, arena-only filter)
+- [x] `apps/web/src/app/api/cards/search/route.ts`: Card search API via `search_cards` RPC
+- [x] `apps/web/src/app/api/cards/[id]/route.ts`: Single card detail API
+- [x] `apps/web/src/app/cards/[id]/page.tsx`: Card detail page (large image, mana cost, oracle text, P/T, legality table, MTGA/Alchemy badges, set symbol, rarity colors)
 - [x] `apps/web/src/app/api/sync/scryfall/route.ts`: Sync trigger endpoint + Vercel cron config
-- [x] `scripts/sync-scryfall.ts`: Full Scryfall bulk data sync (cards + legalities + sets)
+- [x] `scripts/sync-scryfall.ts`: Full Scryfall bulk data sync (streaming, cards + sets + legalities) — 114k cards, 412k legality rows
 - [x] `.env.example` with all required env vars
 - [x] `apps/web/vercel.json`: Daily 6am cron for Scryfall sync
+- [x] Supabase project provisioned, migration applied, Scryfall sync complete
+- [x] Vercel env vars set (all environments), framework + rootDirectory configured
+- [x] Deployed to production: https://mtga-deckbuilder.vercel.app
+- [x] `next.config.ts`: Scryfall image domains whitelisted (cards.scryfall.io, imgs.scryfall.io, svgs.scryfall.io)
 - [x] All packages typecheck clean
-
-#### ⚠️ USER ACTION REQUIRED before Phase 2:
-
-1. Create Supabase project at https://supabase.com → get URL + anon key + service role key
-2. Copy `.env.example` → `.env.local` and fill in values
-3. Run migration: paste `packages/db/migrations/001_initial_schema.sql` into Supabase SQL editor (or use CLI)
-4. Run initial Scryfall sync: `pnpm tsx scripts/sync-scryfall.ts` (~5 min, loads ~95k cards)
-5. After sync: run `supabase gen types typescript > packages/db/src/types.ts` to get real DB types
 
 ### 🔲 Phase 2 — Deck Builder UI
 
-- [ ] Card detail page (`/cards/[id]`) — art, rules text, format legality table, all printings
 - [ ] Deck list page (`/decks`) — user's decks, format badges, card count
 - [ ] Deck editor page (`/decks/[id]`) — add/remove cards, sideboard, stats panel
 - [ ] Deck create page (`/decks/new`) — name, format picker
@@ -141,12 +141,14 @@ Full-featured MTG Arena deck management platform:
 MTGA-DeckBuilder/
 ├── apps/web/src/
 │   ├── app/
-│   │   ├── layout.tsx              — root layout, NavBar
-│   │   ├── page.tsx                — home page
-│   │   ├── cards/page.tsx          — card browser (search + filters)
+│   │   ├── layout.tsx                  — root layout, NavBar
+│   │   ├── page.tsx                    — home page
+│   │   ├── cards/page.tsx              — card browser (search + filters)
+│   │   ├── cards/[id]/page.tsx         — card detail (image, text, legality)
 │   │   └── api/
-│   │       ├── cards/search/route.ts   — GET card search
-│   │       └── sync/scryfall/route.ts  — POST sync trigger
+│   │       ├── cards/search/route.ts   — GET search via search_cards RPC
+│   │       ├── cards/[id]/route.ts     — GET single card + legalities
+│   │       └── sync/scryfall/route.ts  — POST sync trigger + cron
 │   └── components/
 │       ├── cards/CardGrid.tsx          — card tile grid
 │       ├── cards/CardSearchFilters.tsx — search bar + format + arena toggle
@@ -161,11 +163,12 @@ MTGA-DeckBuilder/
 │   │       └── mtgaExport.ts       — parseMtgaExport(), deckToMtgaExport()
 │   └── db/
 │       ├── migrations/001_initial_schema.sql
+│       ├── migrations/002_search_cards_rpc.sql
 │       └── src/
 │           ├── client.ts           — createBrowserClient(), createServiceClient()
-│           └── types.ts            — placeholder (replace with supabase gen types)
+│           └── types.ts            — generated types (supabase gen types)
 └── scripts/
-    └── sync-scryfall.ts            — bulk Scryfall sync (run with pnpm tsx)
+    └── sync-scryfall.ts            — bulk Scryfall sync (streaming, run with pnpm tsx)
 ```
 
 ---
@@ -177,6 +180,7 @@ MTGA-DeckBuilder/
 - **cc-rig hook blocks direct push to main** — always use a feature branch + PR
 - **GitHub token needs `workflow` scope** to push `.github/workflows/` files (re-auth with `gh auth refresh -h github.com -s workflow`)
 - Commit messages follow conventional style; co-author line required for Claude commits
+- **Always deploy to production** with `vercel deploy --prod` — never preview-only
 
 ### Data / Scryfall
 
@@ -184,15 +188,18 @@ MTGA-DeckBuilder/
 - Alchemy detection: `card.set_type === "alchemy"` OR `card.name.startsWith("A-")`
 - Double-faced cards (DFC) store images on `card_faces[0].image_uris`, not top-level `image_uris`
 - Scryfall rate limit: 10 req/sec — bulk download is one large file, not per-card requests
-- `default_cards` bulk file = all printings (~100MB); `oracle_cards` = one per oracle (~25MB)
+- `default_cards` bulk file = all printings (~100MB compressed, ~500MB uncompressed); must stream — do NOT use `response.json()` directly (hits Node string length limit)
 - Always send `User-Agent` header to Scryfall API requests
+- **Scryfall legalities include unsupported formats** (explorer, historicbrawl, oathbreaker, penny, premodern, etc.) — filter to only `SUPPORTED_FORMATS` before upserting or every batch fails silently
+- **Some Scryfall cards have null oracle_id** (tokens/art cards) — skip with `if (!c.oracle_id) continue` or whole batch fails
+- **PostgREST default row limit is 1000** — any query expecting more rows (e.g. all legal cards in a format) must use a SQL RPC with EXISTS, not a `.in()` filter
 
 ### Database
 
 - RLS is ON for all tables — use `createServiceClient()` (service role) for sync jobs, `createBrowserClient()` (anon) for user-facing queries
-- `packages/db/src/types.ts` is a placeholder until `supabase gen types` is run post-migration
+- After any schema change: run `supabase gen types typescript --linked 2>/dev/null | grep -v "^Initialising" > packages/db/src/types.ts` then `pnpm --filter @mtga/db build`
 - `pg_trgm` extension required for fuzzy card name search — already in migration
-- Card search API currently uses `ilike` (% wildcard) — upgrade to full-text / trigram similarity if needed for performance
+- Card search uses `search_cards` RPC (EXISTS join) — much faster than two-query approach
 
 ### Next.js / Vercel
 
@@ -200,11 +207,16 @@ MTGA-DeckBuilder/
 - Tailwind is v4 (different config from v3 — no tailwind.config.js, uses CSS @import)
 - `vercel.json` cron in `apps/web/` (not root) because Vercel deploys the web app, not the monorepo root
 - `maxDuration = 300` needed on the sync API route for Vercel Pro/Enterprise
+- **Vercel project rootDirectory must be `apps/web`**, framework `nextjs` — set via API (CLI alone doesn't surface this)
+- **Do NOT have a `pnpm-workspace.yaml` inside `apps/web`** — it makes pnpm treat it as a broken workspace root and fails Vercel CI with "packages field missing or empty"
+- `vercel env add ... preview` requires `--value "..." ""` (empty string as third arg for all preview branches) — `--yes` flag alone doesn't work in v54
+- `supabase gen types` prints "Initialising login role..." to stdout — pipe through `grep -v "^Initialising"` before writing to file
 
 ### Environment Variables
 
 - Copy `.env.example` → `.env.local` (never commit `.env.local`)
 - Required vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SYNC_SECRET`
+- Supabase now issues `sb_publishable_...` keys (equivalent to old anon key) — store as `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - Phase 4 adds: `GOOGLE_AI_API_KEY`, `ADK_AGENT_URL`
 
 ---
@@ -221,11 +233,16 @@ pnpm build                            # turbo build all
 pnpm --filter @mtga/core build        # build core package
 pnpm --filter @mtga/web typecheck     # typecheck web app
 
-# Scryfall sync (run after Supabase is set up)
-pnpm tsx scripts/sync-scryfall.ts
+# Scryfall sync (streaming, safe for large files)
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... pnpm tsx scripts/sync-scryfall.ts
 
-# Supabase types (run after migration)
-supabase gen types typescript --project-id YOUR_PROJECT_ID > packages/db/src/types.ts
+# Supabase types (run after any migration)
+supabase link --project-ref ozdcbklmswydbbzxinij
+supabase gen types typescript --linked 2>/dev/null | grep -v "^Initialising" > packages/db/src/types.ts
+pnpm --filter @mtga/db build
+
+# Deploy (always production)
+cd apps/web && vercel deploy --prod
 
 # Git (always branch — cc-rig blocks direct push to main)
 git checkout -b feature/your-feature
