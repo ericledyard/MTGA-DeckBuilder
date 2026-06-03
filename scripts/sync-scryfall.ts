@@ -18,6 +18,22 @@ import { createServiceClient } from "../packages/db/src/client";
 const SCRYFALL_BULK_INDEX = "https://api.scryfall.com/bulk-data";
 const BATCH_SIZE = 500;
 
+// Only formats in our mtg_format enum — Scryfall includes many others
+// (explorer, historicbrawl, oathbreaker, penny, premodern, etc.) that we ignore
+const SUPPORTED_FORMATS = new Set([
+  "standard",
+  "alchemy",
+  "historic",
+  "brawl",
+  "timeless",
+  "pioneer",
+  "modern",
+  "legacy",
+  "vintage",
+  "commander",
+  "pauper",
+]);
+
 interface BulkDataEntry {
   type: string;
   download_uri: string;
@@ -163,12 +179,16 @@ async function syncCards(downloadUri: string) {
     const { error } = await supabase
       .from("card_legalities")
       .upsert(legalityBatch, { onConflict: "oracle_id,format" });
-    if (error) console.error("Legality upsert error:", error.message);
-    legalityCount += legalityBatch.length;
+    if (error) {
+      console.error("Legality upsert error:", error.message);
+    } else {
+      legalityCount += legalityBatch.length;
+    }
     legalityBatch = [];
   };
 
   for await (const c of streamCards(tmpFile)) {
+    if (!c.oracle_id) continue; // skip tokens/art cards with no oracle_id
     const imgs = getImageUris(c);
     cardBatch.push({
       scryfall_id: c.id,
@@ -202,7 +222,7 @@ async function syncCards(downloadUri: string) {
     if (!seenOracles.has(c.oracle_id)) {
       seenOracles.add(c.oracle_id);
       for (const [format, status] of Object.entries(c.legalities)) {
-        if (format === "future") continue; // Scryfall preview format, not in our enum
+        if (!SUPPORTED_FORMATS.has(format)) continue;
         legalityBatch.push({ oracle_id: c.oracle_id, format, status });
       }
     }

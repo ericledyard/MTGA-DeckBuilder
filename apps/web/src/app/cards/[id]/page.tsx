@@ -8,6 +8,20 @@ type CardRow = Database["public"]["Tables"]["cards"]["Row"];
 type LegalityRow = Database["public"]["Tables"]["card_legalities"]["Row"];
 type LegalityStatus = Database["public"]["Enums"]["legality_status"];
 
+const FORMAT_ORDER = [
+  "standard",
+  "alchemy",
+  "historic",
+  "timeless",
+  "brawl",
+  "pioneer",
+  "modern",
+  "legacy",
+  "vintage",
+  "commander",
+  "pauper",
+] as const;
+
 const FORMAT_LABELS: Record<string, string> = {
   standard: "Standard",
   alchemy: "Alchemy",
@@ -23,21 +37,103 @@ const FORMAT_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<LegalityStatus, string> = {
-  legal: "bg-green-900/60 text-green-300",
-  not_legal: "bg-gray-800 text-gray-500",
-  banned: "bg-red-900/60 text-red-300",
-  restricted: "bg-yellow-900/60 text-yellow-300",
-  suspended: "bg-orange-900/60 text-orange-300",
+  legal: "bg-green-900/50 border border-green-700/50 text-green-300",
+  not_legal: "bg-gray-800/60 border border-gray-700/30 text-gray-500",
+  banned: "bg-red-900/50 border border-red-700/50 text-red-300",
+  restricted: "bg-yellow-900/50 border border-yellow-700/50 text-yellow-300",
+  suspended: "bg-orange-900/50 border border-orange-700/50 text-orange-300",
 };
+
+const RARITY_STYLES: Record<string, React.CSSProperties> = {
+  common: { color: "#d1d5db" },
+  uncommon: {
+    background: "linear-gradient(135deg, #9ca3af, #d1d5db, #9ca3af)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+  },
+  rare: {
+    background: "linear-gradient(135deg, #b8860b, #ffd700, #daa520)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+  },
+  mythic: {
+    background: "linear-gradient(135deg, #c2410c, #f97316, #fb923c, #f59e0b)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+  },
+};
+
+import type React from "react";
+
+function RarityLabel({ rarity }: { rarity: string }) {
+  const style = RARITY_STYLES[rarity] ?? RARITY_STYLES.common;
+  return (
+    <span className="text-sm font-bold capitalize" style={style}>
+      {rarity}
+    </span>
+  );
+}
 
 function ManaCost({ cost }: { cost: string | null }) {
   if (!cost) return null;
+  // Convert {W}{U}{B} → W U B (space-separated, strip braces)
+  const text = cost.replace(/\{([^}]+)\}/g, "$1 ").trim();
   return (
-    <span className="font-mono text-amber-300 tracking-wide">
-      {cost
-        .replace(/[{}]/g, (m) => (m === "{" ? "" : m === "}" ? " " : m))
-        .trim()}
+    <span className="font-mono text-base text-amber-300 tracking-widest bg-gray-800/80 px-3 py-1 rounded-lg border border-gray-700">
+      {text}
     </span>
+  );
+}
+
+function ArenaBadge({
+  available,
+  isAlchemy,
+}: {
+  available: boolean;
+  isAlchemy: boolean;
+}) {
+  if (isAlchemy) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-900/70 border border-purple-500/50 text-purple-200">
+        <span className="text-purple-400 font-black italic text-sm leading-none">
+          A
+        </span>
+        Alchemy
+      </span>
+    );
+  }
+  if (available) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-900/70 border border-teal-500/50 text-teal-200">
+        <svg
+          viewBox="0 0 16 16"
+          className="w-3 h-3 fill-teal-400"
+          aria-hidden="true"
+        >
+          <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 12.5a5.5 5.5 0 110-11 5.5 5.5 0 010 11zm2.5-5.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+        </svg>
+        MTGA
+      </span>
+    );
+  }
+  return null;
+}
+
+function SetSymbol({
+  iconUri,
+  setName,
+}: {
+  iconUri: string | null;
+  setName: string;
+}) {
+  if (!iconUri) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={iconUri}
+      alt={`${setName} set symbol`}
+      className="w-5 h-5 object-contain opacity-80 inline-block"
+    />
   );
 }
 
@@ -48,15 +144,17 @@ function LegalityTable({ legalities }: { legalities: LegalityRow[] }) {
 
   return (
     <div className="grid grid-cols-2 gap-1.5">
-      {Object.entries(FORMAT_LABELS).map(([fmt, label]) => {
+      {FORMAT_ORDER.map((fmt) => {
         const status = (byFormat[fmt] as LegalityStatus) ?? "not_legal";
         return (
           <div
             key={fmt}
-            className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs ${STATUS_STYLES[status]}`}
+            className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium ${STATUS_STYLES[status]}`}
           >
-            <span className="font-medium">{label}</span>
-            <span className="capitalize">{status.replace("_", " ")}</span>
+            <span>{FORMAT_LABELS[fmt]}</span>
+            <span className="capitalize opacity-90">
+              {status.replace("_", " ")}
+            </span>
           </div>
         );
       })}
@@ -74,7 +172,7 @@ export default async function CardDetailPage({
 
   const { data: card, error } = await supabase
     .from("cards")
-    .select("*")
+    .select("*, sets(icon_svg_uri)")
     .eq("id", id)
     .single();
 
@@ -83,25 +181,26 @@ export default async function CardDetailPage({
   const { data: legalities } = await supabase
     .from("card_legalities")
     .select("format, status")
-    .eq("oracle_id", (card as CardRow).oracle_id);
+    .eq("oracle_id", card.oracle_id);
 
-  const c = card as CardRow;
+  const c = card as CardRow & { sets: { icon_svg_uri: string | null } | null };
   const image = c.image_uri_large ?? c.image_uri_normal;
+  const setIconUri = c.sets?.icon_svg_uri ?? null;
 
   return (
     <div className="max-w-5xl mx-auto">
       <Link
         href="/cards"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white mb-6 transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-white mb-6 transition-colors"
       >
         ← Back to card browser
       </Link>
 
-      <div className="flex flex-col md:flex-row gap-8">
+      <div className="flex flex-col md:flex-row gap-10">
         {/* Card image */}
-        <div className="flex-shrink-0 w-full md:w-72">
+        <div className="flex-shrink-0 w-full md:w-64 lg:w-72">
           {image ? (
-            <div className="relative aspect-[5/7] rounded-2xl overflow-hidden shadow-2xl shadow-black/60">
+            <div className="relative aspect-[5/7] rounded-2xl overflow-hidden shadow-2xl shadow-black/70 ring-1 ring-white/5">
               <Image
                 src={image}
                 alt={c.name}
@@ -112,34 +211,55 @@ export default async function CardDetailPage({
               />
             </div>
           ) : (
-            <div className="aspect-[5/7] rounded-2xl bg-gray-800 flex items-center justify-center text-gray-600">
+            <div className="aspect-[5/7] rounded-2xl bg-gray-800 flex items-center justify-center text-gray-600 ring-1 ring-white/5">
               No image
             </div>
           )}
         </div>
 
         {/* Card details */}
-        <div className="flex-1 space-y-6">
-          {/* Header */}
-          <div>
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <h1 className="text-3xl font-bold text-white">{c.name}</h1>
-              <ManaCost cost={c.mana_cost} />
+        <div className="flex-1 min-w-0 space-y-5">
+          {/* Name + mana cost */}
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <h1 className="text-3xl font-bold text-white leading-tight">
+              {c.name}
+            </h1>
+            <ManaCost cost={c.mana_cost} />
+          </div>
+
+          {/* Badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <ArenaBadge
+              available={c.available_on_arena}
+              isAlchemy={c.is_alchemy}
+            />
+          </div>
+
+          {/* Type line */}
+          <p className="text-gray-300 text-base">{c.type_line}</p>
+
+          {/* Set / rarity / artist row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-gray-900/60 border border-gray-800 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2">
+              <SetSymbol iconUri={setIconUri} setName={c.set_name} />
+              <span className="text-white font-semibold text-sm">
+                {c.set_name}
+              </span>
+              <span className="text-gray-600 text-xs uppercase">
+                {c.set_code}
+              </span>
             </div>
-            <p className="text-gray-400 mt-1">{c.type_line}</p>
-            <div className="flex gap-3 mt-2 text-xs text-gray-500">
-              <span className="capitalize">{c.rarity}</span>
-              <span>·</span>
-              <span>{c.set_name}</span>
-              <span>·</span>
-              <span className="uppercase">{c.set_code}</span>
-              {c.artist && (
-                <>
-                  <span>·</span>
-                  <span>Illus. {c.artist}</span>
-                </>
-              )}
-            </div>
+            <span className="text-gray-700">·</span>
+            <RarityLabel rarity={c.rarity} />
+            {c.artist && (
+              <>
+                <span className="text-gray-700">·</span>
+                <span className="text-gray-400 text-sm">
+                  Illus.{" "}
+                  <span className="text-gray-300 font-medium">{c.artist}</span>
+                </span>
+              </>
+            )}
           </div>
 
           {/* Oracle text */}
@@ -153,24 +273,30 @@ export default async function CardDetailPage({
 
           {/* Flavor text */}
           {c.flavor_text && (
-            <p className="text-gray-500 text-sm italic px-1">{c.flavor_text}</p>
+            <p className="text-gray-500 text-sm italic border-l-2 border-gray-700 pl-3">
+              {c.flavor_text}
+            </p>
           )}
 
-          {/* Stats row */}
+          {/* Stats */}
           {(c.power || c.toughness || c.loyalty) && (
-            <div className="flex gap-4 text-sm">
+            <div className="flex gap-3">
               {c.power && c.toughness && (
-                <div className="bg-gray-800 rounded-lg px-4 py-2 text-center">
-                  <p className="text-xs text-gray-500 mb-0.5">P/T</p>
-                  <p className="text-white font-bold">
+                <div className="bg-gray-800 rounded-xl px-5 py-2.5 text-center border border-gray-700">
+                  <p className="text-xs text-gray-500 mb-0.5 uppercase tracking-wider">
+                    P / T
+                  </p>
+                  <p className="text-white font-bold text-lg">
                     {c.power}/{c.toughness}
                   </p>
                 </div>
               )}
               {c.loyalty && (
-                <div className="bg-gray-800 rounded-lg px-4 py-2 text-center">
-                  <p className="text-xs text-gray-500 mb-0.5">Loyalty</p>
-                  <p className="text-white font-bold">{c.loyalty}</p>
+                <div className="bg-gray-800 rounded-xl px-5 py-2.5 text-center border border-gray-700">
+                  <p className="text-xs text-gray-500 mb-0.5 uppercase tracking-wider">
+                    Loyalty
+                  </p>
+                  <p className="text-white font-bold text-lg">{c.loyalty}</p>
                 </div>
               )}
             </div>
@@ -178,7 +304,7 @@ export default async function CardDetailPage({
 
           {/* Format legality */}
           <div>
-            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
               Format Legality
             </h2>
             <LegalityTable legalities={(legalities ?? []) as LegalityRow[]} />
