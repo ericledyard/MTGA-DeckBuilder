@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-04 (session 4)_
-_Branch: phase1/foundation_
+_Last updated: 2026-06-04 (session 5)_
+_Branch: main (all session 5 work merged)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -114,6 +114,17 @@ Full-featured MTG Arena deck management platform:
 - [ ] Google OAuth — needs Supabase provider config in dashboard then remove stub
 - [ ] Drag-and-drop visual feedback (drop zone highlight while dragging)
 - [ ] Color identity breakdown visible in deck panel (component exists, not wired in new layout)
+
+### ✅ Phase 2.6 — UX Polish (COMPLETE — live in production, session 5)
+
+- [x] Deck editor card browser: hover zoom — 80% panel overlay, 80ms debounce, clears on drag
+- [x] Card browser "Back to card browser" link now restores all active filters via `?ref=` param
+- [x] Card browser: filter panel collapsed by default behind amber **Filters** button with active-count badge
+- [x] Deck editor: filter panel collapsed by default behind amber **Filters** button with active-count badge
+- [x] Both search inputs (name + oracle text) debounced 350ms — no more per-keystroke API calls
+- [x] Deck editor expanded filter panel: full CMC / Rarity / Type / Expansion pickers (matches card browser)
+- [x] Global `~/.claude/CLAUDE.md` created — deploy workflow and phase-transition rules embedded
+- [x] Deployment workflow corrected: always commit → PR → merge to main → Vercel auto-deploys (PR #5–8 all merged)
 
 ### ✅ Phase 2.5 — Search & UX Polish (COMPLETE — live in production, session 4)
 
@@ -245,7 +256,9 @@ MTGA-DeckBuilder/
 - **cc-rig hook blocks direct push to main** — always use a feature branch + PR
 - **GitHub token needs `workflow` scope** to push `.github/workflows/` files (re-auth with `gh auth refresh -h github.com -s workflow`)
 - Commit messages follow conventional style; co-author line required for Claude commits
-- **Always deploy to production** with `vercel deploy --prod` — never preview-only
+- **Always use the GitHub → Vercel pipeline** — commit on feature branch → push → `gh pr create` → `gh pr merge --merge` → Vercel auto-deploys from main. Never run `vercel deploy --prod` directly.
+- **Full pipeline is one atomic action** — when user says "commit" or "deploy", run the entire commit→PR→merge sequence without pausing for confirmation
+- **Global deploy rule in `~/.claude/CLAUDE.md`** — applies to all projects, not just this one
 
 ### Data / Scryfall
 
