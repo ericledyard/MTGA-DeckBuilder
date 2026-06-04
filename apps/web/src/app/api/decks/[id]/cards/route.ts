@@ -74,6 +74,23 @@ export async function POST(request: NextRequest, { params }: Params) {
   return NextResponse.json(data, { status: 201 });
 }
 
+// DELETE — remove all cards from the deck
+export async function DELETE(_request: NextRequest, { params }: Params) {
+  const { id: deckId } = await params;
+  const { supabase, user } = await authedDeckUser(deckId);
+  if (!user)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  await supabase.from("deck_cards").delete().eq("deck_id", deckId);
+
+  await supabase
+    .from("decks")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", deckId);
+
+  return new NextResponse(null, { status: 204 });
+}
+
 // PUT — set exact quantity (or remove if quantity <= 0)
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id: deckId } = await params;
