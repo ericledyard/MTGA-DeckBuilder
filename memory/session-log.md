@@ -11,3 +11,4 @@ Format: `[YYYY-MM-DD] <one-line summary of session>`
 [2026-06-03] Session 2: Card browser advanced filters (color/CMC/rarity/type/expansion), mana symbol SVGs, printings carousel with zoom fix, migration 003 deployed
 [2026-06-04] Session 3: Phase 2 complete — Supabase auth, deck CRUD API, MTGA split-pane deck editor (card grid + deck list), fixed multiple React 19 error boundary crashes, corrected Brawl format rules (100 cards)
 [2026-06-04] Session 4: Phase 2.5 — default sort CMC/name, filter persistence via URL params, oracle text keyword search on card browser + deck editor, fixed all hook absolute paths in settings.json
+[2026-06-04] Session 5: Phase 2.6 — hover zoom in deck editor, filter panels collapsed behind Filters button, 350ms search debounce, full CMC/Rarity/Type/Expansion filters in deck editor, deploy workflow fixed (PR→merge pipeline), global CLAUDE.md created
