@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { createServiceClient } from "@mtga/db";
 import type { Database } from "@mtga/db";
 import { ManaCost } from "@/components/ui/ManaCost";
-import { CardImageZoom } from "@/components/cards/CardImageZoom";
+import { CardPrintingsCarousel } from "@/components/cards/CardPrintingsCarousel";
+import type { PrintingInfo } from "@/components/cards/CardPrintingsCarousel";
 
 type CardRow = Database["public"]["Tables"]["cards"]["Row"];
 type LegalityRow = Database["public"]["Tables"]["card_legalities"]["Row"];
@@ -168,15 +169,56 @@ export default async function CardDetailPage({
 
   if (error || !card) notFound();
 
-  const { data: legalities } = await supabase
-    .from("card_legalities")
-    .select("format, status")
-    .eq("oracle_id", card.oracle_id);
+  const [{ data: legalities }, { data: rawPrintings }] = await Promise.all([
+    supabase
+      .from("card_legalities")
+      .select("format, status")
+      .eq("oracle_id", card.oracle_id),
+    supabase
+      .from("cards")
+      .select(
+        "id, set_code, set_name, rarity, collector_number, image_uri_normal, image_uri_large, sets(icon_svg_uri, released_at)",
+      )
+      .eq("oracle_id", card.oracle_id)
+      .not("image_uri_normal", "is", null),
+  ]);
 
   const c = card as CardRow & { sets: { icon_svg_uri: string | null } | null };
-  const thumbSrc = c.image_uri_normal ?? c.image_uri_large;
-  const largeSrc = c.image_uri_large ?? c.image_uri_normal;
   const setIconUri = c.sets?.icon_svg_uri ?? null;
+
+  // Sort printings newest-set-first, then map to carousel shape
+  type RawPrinting = {
+    id: string;
+    set_code: string;
+    set_name: string;
+    rarity: string;
+    collector_number: string;
+    image_uri_normal: string;
+    image_uri_large: string | null;
+    sets: { icon_svg_uri: string | null; released_at: string | null } | null;
+  };
+  const printings: PrintingInfo[] = ((rawPrintings ?? []) as RawPrinting[])
+    .sort((a, b) => {
+      const da = a.sets?.released_at ?? "";
+      const db = b.sets?.released_at ?? "";
+      return db.localeCompare(da); // newest first
+    })
+    .map((p) => ({
+      id: p.id,
+      setCode: p.set_code,
+      setName: p.set_name,
+      setIconUri: p.sets?.icon_svg_uri ?? null,
+      imageNormal: p.image_uri_normal,
+      imageLarge: p.image_uri_large,
+      rarity: p.rarity,
+      collectorNumber: p.collector_number,
+    }));
+
+  // Index of the printing the user navigated to
+  const initialIndex = Math.max(
+    printings.findIndex((p) => p.id === id),
+    0,
+  );
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -188,10 +230,13 @@ export default async function CardDetailPage({
       </Link>
 
       <div className="flex flex-col md:flex-row gap-10">
-        {/* Card image — hover to zoom */}
+        {/* Card image — all printings carousel */}
         <div className="flex-shrink-0 w-full md:w-64 lg:w-72">
-          {thumbSrc && largeSrc ? (
-            <CardImageZoom src={thumbSrc} largeSrc={largeSrc} alt={c.name} />
+          {printings.length > 0 ? (
+            <CardPrintingsCarousel
+              printings={printings}
+              initialIndex={initialIndex}
+            />
           ) : (
             <div className="aspect-[5/7] rounded-2xl bg-gray-800 flex items-center justify-center text-gray-600 ring-1 ring-white/5">
               No image
