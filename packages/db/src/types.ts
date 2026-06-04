@@ -380,6 +380,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      lookup_cards_by_names: {
+        Args: { p_names: string[] }
+        Returns: {
+          available_on_arena: boolean
+          cmc: number
+          colors: string[]
+          id: string
+          image_uri_normal: string
+          mana_cost: string
+          name: string
+          oracle_id: string
+          rarity: Database["public"]["Enums"]["card_rarity"]
+          type_line: string
+        }[]
+      }
       search_cards: {
         Args: {
           p_arena_only?: boolean
@@ -390,6 +405,7 @@ export type Database = {
           p_query?: string
           p_rarities?: string[]
           p_set_codes?: string[]
+          p_text_query?: string
           p_types?: string[]
         }
         Returns: {
