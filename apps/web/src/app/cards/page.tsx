@@ -112,7 +112,11 @@ function CardsPageContent() {
         </p>
       )}
 
-      <CardGrid cards={cards} loading={loading} />
+      <CardGrid
+        cards={cards}
+        loading={loading}
+        backHref={`/cards?${filtersToParams(filters)}`}
+      />
     </div>
   );
 }

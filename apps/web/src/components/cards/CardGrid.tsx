@@ -18,10 +18,19 @@ function RarityBadge({ rarity }: { rarity: string }) {
   );
 }
 
-function CardTile({ card }: { card: CardSearchResult }) {
+function CardTile({
+  card,
+  backHref,
+}: {
+  card: CardSearchResult;
+  backHref?: string;
+}) {
+  const href = backHref
+    ? `/cards/${card.id}?ref=${encodeURIComponent(backHref)}`
+    : `/cards/${card.id}`;
   return (
     <Link
-      href={`/cards/${card.id}`}
+      href={href}
       className="group relative rounded-xl overflow-hidden border border-gray-800 hover:border-amber-500/60 transition-all bg-gray-900"
       aria-label={`View ${card.name}`}
     >
@@ -74,9 +83,10 @@ function SkeletonTile() {
 interface Props {
   cards: CardSearchResult[];
   loading: boolean;
+  backHref?: string;
 }
 
-export function CardGrid({ cards, loading }: Props) {
+export function CardGrid({ cards, loading, backHref }: Props) {
   if (loading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -99,7 +109,7 @@ export function CardGrid({ cards, loading }: Props) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       {cards.map((card) => (
-        <CardTile key={card.id} card={card} />
+        <CardTile key={card.id} card={card} backHref={backHref} />
       ))}
     </div>
   );
