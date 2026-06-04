@@ -192,11 +192,11 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ oracle_id: oracleId, quantity: newQty, is_sideboard: isSideboard }),
-    });
+    }).catch(() => {});
   }
 
-  function addCardFromSearch(card: SearchCard) {
-    const isSideboard = activeTab === "sideboard";
+  function addCardFromSearch(card: SearchCard, isSideboardOverride?: boolean) {
+    const isSideboard = isSideboardOverride ?? activeTab === "sideboard";
     const existing = deckCards.find(
       (c) => c.oracle_id === card.oracle_id && c.is_sideboard === isSideboard,
     );
@@ -232,7 +232,23 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ oracle_id: card.oracle_id, quantity: 1, is_sideboard: isSideboard }),
-    });
+    }).catch(() => {});
+  }
+
+  // Drag-and-drop handlers
+  function handleDragStart(e: React.DragEvent, card: SearchCard) {
+    e.dataTransfer.setData("application/json", JSON.stringify(card));
+    e.dataTransfer.effectAllowed = "copy";
+  }
+
+  function handleDrop(e: React.DragEvent, isSideboard: boolean) {
+    e.preventDefault();
+    try {
+      const card: SearchCard = JSON.parse(e.dataTransfer.getData("application/json"));
+      addCardFromSearch(card, isSideboard);
+    } catch {
+      // ignore malformed data
+    }
   }
 
   async function handleExport() {
@@ -358,7 +374,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                   <button
                     key={card.id}
                     onClick={() => addCardFromSearch(card)}
-                    className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, card)}
+                    className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-grab active:cursor-grabbing"
                   >
                     {card.image_uri_normal ? (
                       <img
@@ -405,7 +423,11 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       </div>
 
       {/* ── RIGHT: Deck panel ────────────────────────────────────── */}
-      <div className="flex flex-col w-72 xl:w-80 shrink-0 bg-gray-950">
+      <div
+        className="flex flex-col w-72 xl:w-80 shrink-0 bg-gray-950"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => handleDrop(e, activeTab === "sideboard")}
+      >
         {/* Deck header */}
         <div className="shrink-0 px-4 pt-3 pb-2 border-b border-gray-800">
           <div className="flex items-start justify-between gap-2 mb-1">
