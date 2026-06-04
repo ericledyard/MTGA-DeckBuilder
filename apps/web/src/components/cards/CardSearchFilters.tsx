@@ -7,6 +7,7 @@ import type { Format } from "@mtga/core";
 
 export interface CardFilters {
   query: string;
+  textQuery: string;
   colors: string[];
   cmcValues: number[];
   rarities: string[];
@@ -18,6 +19,7 @@ export interface CardFilters {
 
 export const DEFAULT_FILTERS: CardFilters = {
   query: "",
+  textQuery: "",
   colors: [],
   cmcValues: [],
   rarities: [],
@@ -241,6 +243,7 @@ export function CardSearchFilters({ filters, onChange }: Props) {
     filters.types.length > 0 ||
     filters.setCodes.length > 0 ||
     filters.format !== "" ||
+    filters.textQuery !== "" ||
     !filters.arenaOnly;
 
   const filteredSets = sets.filter((s) =>
@@ -249,15 +252,25 @@ export function CardSearchFilters({ filters, onChange }: Props) {
 
   return (
     <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-5 space-y-5">
-      {/* Search input */}
-      <input
-        type="search"
-        placeholder="Search cards…"
-        value={filters.query}
-        onChange={(e) => onChange({ query: e.target.value })}
-        aria-label="Search cards by name"
-        className="w-full px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition-colors"
-      />
+      {/* Search inputs */}
+      <div className="space-y-2">
+        <input
+          type="search"
+          placeholder="Search by name…"
+          value={filters.query}
+          onChange={(e) => onChange({ query: e.target.value })}
+          aria-label="Search cards by name"
+          className="w-full px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition-colors"
+        />
+        <input
+          type="search"
+          placeholder="Card text contains… (e.g. Connive, +1/+1, draw a card)"
+          value={filters.textQuery}
+          onChange={(e) => onChange({ textQuery: e.target.value })}
+          aria-label="Search card oracle text"
+          className="w-full px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition-colors"
+        />
+      </div>
 
       {/* Colors */}
       <div>
@@ -268,7 +281,9 @@ export function CardSearchFilters({ filters, onChange }: Props) {
               key={c.value}
               color={c}
               active={filters.colors.includes(c.value)}
-              onClick={() => onChange({ colors: toggle(filters.colors, c.value) })}
+              onClick={() =>
+                onChange({ colors: toggle(filters.colors, c.value) })
+              }
             />
           ))}
           {filters.colors.length > 0 && (
@@ -445,6 +460,7 @@ export function CardSearchFilters({ filters, onChange }: Props) {
               types: [],
               setCodes: [],
               format: "",
+              textQuery: "",
               arenaOnly: true,
             })
           }

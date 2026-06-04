@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { validateDeckStructure, deckToMtgaExport, FORMAT_RULES } from "@mtga/core";
+import {
+  validateDeckStructure,
+  deckToMtgaExport,
+  FORMAT_RULES,
+} from "@mtga/core";
 import type { Deck, Format } from "@mtga/core";
 import { DeckCardRow, type CardRowData } from "./DeckCardRow";
 import { ManaCurveChart } from "./ManaCurveChart";
@@ -68,7 +72,13 @@ function cardTypeGroup(typeLine: string): string {
   return "Other";
 }
 
-function ManaSymbols({ cost, size = 13 }: { cost: string | null; size?: number }) {
+function ManaSymbols({
+  cost,
+  size = 13,
+}: {
+  cost: string | null;
+  size?: number;
+}) {
   if (!cost) return null;
   const symbols = [...cost.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
   return (
@@ -90,10 +100,13 @@ function ManaSymbols({ cost, size = 13 }: { cost: string | null; size?: number }
 export function DeckEditor({ deck }: DeckEditorProps) {
   const router = useRouter();
   const [deckCards, setDeckCards] = useState<CardRowData[]>(deck.deck_cards);
-  const [activeTab, setActiveTab] = useState<"mainboard" | "sideboard">("mainboard");
+  const [activeTab, setActiveTab] = useState<"mainboard" | "sideboard">(
+    "mainboard",
+  );
   const [searchResults, setSearchResults] = useState<SearchCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [textQuery, setTextQuery] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [arenaOnly, setArenaOnly] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -110,17 +123,18 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     setLoading(true);
     const params = new URLSearchParams({ limit: "60" });
     if (query) params.set("q", query);
+    if (textQuery) params.set("text", textQuery);
     if (colors.length) params.set("colors", colors.join(","));
     if (arenaOnly) params.set("arena", "1");
 
     fetch(`/api/cards/search?${params}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data) => {
-        setSearchResults(Array.isArray(data) ? data : data.cards ?? []);
+        setSearchResults(Array.isArray(data) ? data : (data.cards ?? []));
         setLoading(false);
       })
       .catch(() => {});
-  }, [query, colors, arenaOnly]);
+  }, [query, textQuery, colors, arenaOnly]);
 
   // Derived
   const mainboard = deckCards.filter((c) => !c.is_sideboard);
@@ -160,16 +174,26 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         (c) => c.card && cardTypeGroup(c.card.type_line) === type,
       );
       if (group.length > 0)
-        acc.push({ type, cards: group, count: group.reduce((s, c) => s + c.quantity, 0) });
+        acc.push({
+          type,
+          cards: group,
+          count: group.reduce((s, c) => s + c.quantity, 0),
+        });
       return acc;
     },
     [] as { type: string; cards: CardRowData[]; count: number }[],
   );
 
-  const statsCards = mainboard.filter((c) => c.card).map((c) => ({ ...c.card!, quantity: c.quantity }));
+  const statsCards = mainboard
+    .filter((c) => c.card)
+    .map((c) => ({ ...c.card!, quantity: c.quantity }));
 
   // Card operations
-  async function upsertCard(oracleId: string, delta: number, isSideboard: boolean) {
+  async function upsertCard(
+    oracleId: string,
+    delta: number,
+    isSideboard: boolean,
+  ) {
     const existing = deckCards.find(
       (c) => c.oracle_id === oracleId && c.is_sideboard === isSideboard,
     );
@@ -177,7 +201,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
 
     if (newQty <= 0) {
       setDeckCards((prev) =>
-        prev.filter((c) => !(c.oracle_id === oracleId && c.is_sideboard === isSideboard)),
+        prev.filter(
+          (c) => !(c.oracle_id === oracleId && c.is_sideboard === isSideboard),
+        ),
       );
     } else if (existing) {
       setDeckCards((prev) =>
@@ -192,7 +218,11 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     fetch(`/api/decks/${deck.id}/cards`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ oracle_id: oracleId, quantity: newQty, is_sideboard: isSideboard }),
+      body: JSON.stringify({
+        oracle_id: oracleId,
+        quantity: newQty,
+        is_sideboard: isSideboard,
+      }),
     }).catch(() => {});
   }
 
@@ -232,7 +262,11 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     fetch(`/api/decks/${deck.id}/cards`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ oracle_id: card.oracle_id, quantity: 1, is_sideboard: isSideboard }),
+      body: JSON.stringify({
+        oracle_id: card.oracle_id,
+        quantity: 1,
+        is_sideboard: isSideboard,
+      }),
     }).catch(() => {});
   }
 
@@ -253,7 +287,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   function handleDrop(e: React.DragEvent, isSideboard: boolean) {
     e.preventDefault();
     try {
-      const card: SearchCard = JSON.parse(e.dataTransfer.getData("application/json"));
+      const card: SearchCard = JSON.parse(
+        e.dataTransfer.getData("application/json"),
+      );
       addCardFromSearch(card, isSideboard);
     } catch {
       // ignore malformed data
@@ -275,7 +311,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   }
 
   function toggleColor(c: string) {
-    setColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+    setColors((prev) =>
+      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c],
+    );
   }
 
   // Map oracle_id -> quantity in current tab for badge display
@@ -291,73 +329,88 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       {/* ── LEFT: Card browser ───────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 bg-gray-950 border-r border-gray-800">
         {/* Filter bar */}
-        <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-gray-900 border-b border-gray-800">
-          {/* Search */}
-          <div className="relative flex-1 max-w-xs">
+        <div className="shrink-0 flex flex-col bg-gray-900 border-b border-gray-800">
+          {/* Row 1: name search + colors + arena + count */}
+          <div className="flex items-center gap-2 px-3 py-2">
+            {/* Search */}
+            <div className="relative flex-1 max-w-xs">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name…"
+                className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+              <svg
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+
+            {/* Color toggles */}
+            <div className="flex items-center gap-1">
+              {COLORS.map(({ value }) => (
+                <button
+                  key={value}
+                  onClick={() => toggleColor(value)}
+                  title={value}
+                  className={`w-7 h-7 rounded-full border-2 transition-all ${
+                    colors.includes(value)
+                      ? "border-amber-400 scale-110 shadow-lg shadow-amber-900/50"
+                      : "border-transparent opacity-60 hover:opacity-100"
+                  }`}
+                >
+                  <img
+                    src={`https://svgs.scryfall.io/card-symbols/${value}.svg`}
+                    alt={value}
+                    className="w-full h-full"
+                  />
+                </button>
+              ))}
+            </div>
+
+            {/* Arena toggle */}
+            <button
+              onClick={() => setArenaOnly((v) => !v)}
+              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                arenaOnly
+                  ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                  : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Arena
+            </button>
+
+            <span className="text-xs text-gray-600 shrink-0">
+              {loading ? "…" : `${searchResults.length} cards`}
+            </span>
+
+            <span className="ml-auto text-xs text-gray-600">
+              Click to add to{" "}
+              <span className="text-amber-400 font-medium">{activeTab}</span>
+            </span>
+          </div>
+
+          {/* Row 2: oracle text search */}
+          <div className="px-3 pb-2">
             <input
               type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search cards…"
-              className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              value={textQuery}
+              onChange={(e) => setTextQuery(e.target.value)}
+              placeholder="Card text contains… (e.g. Connive, +1/+1, flying)"
+              aria-label="Search card oracle text"
+              className="w-full px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
             />
-            <svg
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
           </div>
-
-          {/* Color toggles */}
-          <div className="flex items-center gap-1">
-            {COLORS.map(({ value }) => (
-              <button
-                key={value}
-                onClick={() => toggleColor(value)}
-                title={value}
-                className={`w-7 h-7 rounded-full border-2 transition-all ${
-                  colors.includes(value)
-                    ? "border-amber-400 scale-110 shadow-lg shadow-amber-900/50"
-                    : "border-transparent opacity-60 hover:opacity-100"
-                }`}
-              >
-                <img
-                  src={`https://svgs.scryfall.io/card-symbols/${value}.svg`}
-                  alt={value}
-                  className="w-full h-full"
-                />
-              </button>
-            ))}
-          </div>
-
-          {/* Arena toggle */}
-          <button
-            onClick={() => setArenaOnly((v) => !v)}
-            className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-              arenaOnly
-                ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
-                : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
-            }`}
-          >
-            Arena
-          </button>
-
-          <span className="text-xs text-gray-600 shrink-0">
-            {loading ? "…" : `${searchResults.length} cards`}
-          </span>
-
-          <span className="ml-auto text-xs text-gray-600">
-            Click to add to{" "}
-            <span className="text-amber-400 font-medium">{activeTab}</span>
-          </span>
         </div>
 
         {/* Card grid */}
@@ -382,7 +435,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                 return (
                   <button
                     key={card.id}
-                    onClick={() => { if (!isDraggingRef.current) addCardFromSearch(card); }}
+                    onClick={() => {
+                      if (!isDraggingRef.current) addCardFromSearch(card);
+                    }}
                     draggable
                     onDragStart={(e) => handleDragStart(e, card)}
                     onDragEnd={handleDragEnd}
@@ -445,7 +500,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
               <h1 className="font-bold text-gray-100 truncate leading-tight">
                 {deck.name}
               </h1>
-              <span className="text-xs capitalize text-gray-500">{deck.format}</span>
+              <span className="text-xs capitalize text-gray-500">
+                {deck.format}
+              </span>
             </div>
             <div className="flex gap-1.5 shrink-0">
               <button
@@ -473,12 +530,16 @@ export function DeckEditor({ deck }: DeckEditorProps) {
             const label = max !== null ? `/ ${max} cards` : `/ ${min}+ cards`;
             return (
               <div className="flex items-center gap-2">
-                <span className={`text-sm font-semibold ${met ? "text-green-400" : "text-amber-400"}`}>
+                <span
+                  className={`text-sm font-semibold ${met ? "text-green-400" : "text-amber-400"}`}
+                >
                   {mainCount}
                 </span>
                 <span className="text-xs text-gray-600">{label}</span>
                 {sideCount > 0 && (
-                  <span className="text-xs text-gray-600 ml-auto">+{sideCount} side</span>
+                  <span className="text-xs text-gray-600 ml-auto">
+                    +{sideCount} side
+                  </span>
                 )}
                 {validationErrors.length > 0 && (
                   <span
@@ -519,7 +580,12 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         <div className="flex-1 overflow-y-auto">
           {grouped.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-700">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-8 h-8"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"

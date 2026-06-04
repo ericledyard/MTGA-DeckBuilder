@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const arenaOnly = searchParams.get("arena") === "1";
   const limit = Math.min(Number(searchParams.get("limit") ?? "48"), 200);
 
+  const textQuery = searchParams.get("text")?.trim() ?? "";
   const colors = searchParams.get("colors")?.split(",").filter(Boolean) ?? null;
   const cmcValues =
     searchParams
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase.rpc("search_cards", {
     p_query: q,
+    p_text_query: textQuery,
     p_format: format,
     p_arena_only: arenaOnly,
     p_limit: limit,
