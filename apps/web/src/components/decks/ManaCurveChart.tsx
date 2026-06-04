@@ -12,7 +12,7 @@ export function ManaCurveChart({ cards }: ManaCurveChartProps) {
   }));
 
   for (const card of cards) {
-    const idx = Math.min(Math.floor(card.cmc), 7);
+    const idx = Math.min(Math.max(0, Math.floor(Number(card.cmc) || 0)), 7);
     const isCreature = card.type_line.toLowerCase().includes("creature");
     if (isCreature) buckets[idx].creatures += card.quantity;
     else buckets[idx].other += card.quantity;
