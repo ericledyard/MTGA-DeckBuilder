@@ -1,6 +1,6 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-03 (session 2)_
+_Last updated: 2026-06-04 (session 3)_
 _Branch: phase1/foundation_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
@@ -82,17 +82,37 @@ Full-featured MTG Arena deck management platform:
 - [x] `apps/web/src/app/globals.css`: `@keyframes zoomFadeIn` for overlay animation
 - [x] Supabase types regenerated after migration 003
 
-### 🔲 Phase 2 — Deck Builder UI
+### ✅ Phase 2 — Deck Builder UI (COMPLETE — live in production, session 3)
 
-- [ ] Deck list page (`/decks`) — user's decks, format badges, card count
-- [ ] Deck editor page (`/decks/[id]`) — add/remove cards, sideboard, stats panel
-- [ ] Deck create page (`/decks/new`) — name, format picker
-- [ ] Mana curve chart (recharts or d3)
-- [ ] Color identity breakdown
-- [ ] MTGA export button (copy to clipboard)
-- [ ] Format validation overlay (shows illegal cards inline)
-- [ ] Supabase Auth — email + Google OAuth
-- [ ] Protected routes (redirect to login if unauthenticated)
+- [x] Supabase Auth — email auth live; Google OAuth stubbed ("coming soon")
+- [x] Protected routes — `/decks`, `/decks/new`, `/decks/[id]` redirect to `/login` if unauthenticated
+- [x] `src/proxy.ts` (Next.js 16 convention, was middleware.ts) — refreshes Supabase session cookies on every request
+- [x] `src/lib/supabase/server.ts` + `client.ts` — SSR server client and browser singleton
+- [x] `/auth/callback/route.ts` — handles both PKCE `code` and OTP `token_hash` flows
+- [x] `/login` and `/register` pages — Raleway/Anton fonts, amber accent, Google stub button
+- [x] `AuthErrorRedirect` on home page — catches Supabase error redirects to site root (hash fragment), forwards to `/login` with readable message
+- [x] NavBar auth state — server-side session check, "Sign in" / email + "Sign out"
+- [x] API routes: GET/POST `/api/decks`, GET/PUT/DELETE `/api/decks/[id]`, POST/PUT `/api/decks/[id]/cards`
+- [x] `/decks` page — deck list with format color badges, card count, last updated
+- [x] `/decks/new` page — name + format picker form
+- [x] `/decks/[id]` page — full MTGA-style split-pane deck editor:
+  - Left panel: scrollable card image grid (3–6 cols), auto-loads arena cards on mount, compact horizontal filter bar (search + color toggles + arena toggle)
+  - Right panel: deck name/format, card count with format-aware requirement label, CSS mana curve chart, card list grouped by type with sticky headers, mainboard/sideboard tabs
+  - Click or drag cards from grid to add to deck
+  - In-deck quantity badge on card image, rarity dot
+  - +/− quantity controls in deck list
+  - MTGA export button (clipboard)
+  - Format validation with inline error count badge
+- [x] `ManaCurveChart` — pure CSS bar chart (replaced recharts which crashed on React 19 with NaN cmc)
+- [x] `ColorBreakdown` — Scryfall SVG mana icons
+- [x] `DeckCardRow` — compact card rows with mana cost symbols
+- [x] Format rules corrected: Brawl = 100 cards (was 60), `FORMAT_RULES` exported from `@mtga/core`
+- [x] Fonts: Anton for headers, Raleway for body text (swapped from Geist)
+
+**Known remaining items / polish:**
+- [ ] Google OAuth — needs Supabase provider config in dashboard then remove stub
+- [ ] Drag-and-drop visual feedback (drop zone highlight while dragging)
+- [ ] Color identity breakdown visible in deck panel (component exists, not wired in new layout)
 
 ### 🔲 Phase 3 — Collection Management
 
@@ -160,13 +180,31 @@ MTGA-DeckBuilder/
 │   │       ├── cards/search/route.ts   — GET search via search_cards RPC
 │   │       ├── cards/[id]/route.ts     — GET single card + legalities
 │   │       └── sync/scryfall/route.ts  — POST sync trigger + cron
+│   ├── (auth)/login/page.tsx           — email login, Google stub
+│   ├── (auth)/register/page.tsx        — signup with confirm email flow
+│   ├── auth/callback/route.ts          — PKCE code + OTP token_hash exchange
+│   ├── decks/page.tsx                  — deck list with format badges
+│   ├── decks/new/page.tsx              — create deck form
+│   ├── decks/[id]/page.tsx             — deck editor (server, hydrates cards)
+│   ├── api/decks/route.ts              — GET list / POST create
+│   ├── api/decks/[id]/route.ts         — GET/PUT/DELETE single deck
+│   ├── api/decks/[id]/cards/route.ts   — POST add / PUT set quantity
+│   ├── src/proxy.ts                    — Supabase session refresh (Next.js 16 proxy)
+│   ├── src/lib/supabase/server.ts      — SSR Supabase client (cookies)
+│   ├── src/lib/supabase/client.ts      — browser singleton
 │   └── components/
 │       ├── cards/CardGrid.tsx              — card tile grid
 │       ├── cards/CardSearchFilters.tsx     — MTGA-style advanced filter panel (color/CMC/rarity/type/set)
 │       ├── cards/CardPrintingsCarousel.tsx — stacked fan of all printings; slide to browse, click to zoom
 │       ├── cards/CardImageZoom.tsx         — hover-to-zoom overlay (pointer-events:none pattern)
+│       ├── decks/DeckEditor.tsx            — MTGA split-pane editor (card grid left, deck list right)
+│       ├── decks/DeckCardRow.tsx           — compact deck card row with qty controls + mana cost
+│       ├── decks/ManaCurveChart.tsx        — pure CSS bar chart (0–7+ CMC buckets)
+│       ├── decks/ColorBreakdown.tsx        — color distribution with Scryfall SVG icons
 │       └── ui/
-│           ├── NavBar.tsx                  — top navigation
+│           ├── NavBar.tsx                  — top navigation (server, reads auth session)
+│           ├── NavBarAuthButton.tsx        — client auth state (sign in / sign out)
+│           ├── AuthErrorRedirect.tsx       — catches Supabase error hash on home page
 │           └── ManaCost.tsx                — renders Scryfall SVG mana symbols
 ├── packages/
 │   ├── core/src/
@@ -235,6 +273,27 @@ MTGA-DeckBuilder/
 - **Zoom overlay + hover interaction conflict** — when a `fixed inset-0` overlay appears, the browser fires `mouseleave` on any element beneath it. If you have state that resets on `onMouseLeave`, capture the value into a separate ref/state before the overlay opens. Pattern: `zoomedPrinting` state set at click time, not derived from hover state.
 - **`supabase db query --linked -f <file>`** is the correct way to run a migration SQL file against the remote Supabase DB via CLI (not `supabase db push`, which uses migration history tracking).
 - **`CREATE OR REPLACE FUNCTION` requires matching signature** — if a function has been previously created with fewer params, it's a different overload. Add `DROP FUNCTION IF EXISTS fn(old, signature)` before the `CREATE OR REPLACE` in the migration.
+
+### Auth / Supabase SSR
+
+- **`proxy.ts` not `middleware.ts`** in Next.js 16 — the file must export `proxy` function, not `middleware`. Using the old name causes a build error.
+- **`@supabase/ssr`** is the correct auth library for Next.js App Router. `createBrowserClient` for client components, `createServerClient` (with cookie store) for RSC/route handlers.
+- **Supabase auth callback handles two flows**: PKCE (`code` param) for OAuth/magic links, OTP (`token_hash` + `type` params) for email confirmations. Must handle both in `/auth/callback/route.ts`.
+- **Supabase redirect URLs must be whitelisted** in Dashboard → Authentication → URL Configuration → Redirect URLs. Add `http://localhost:3000/**` and `https://mtga-deckbuilder.vercel.app/**`. Without this, confirmation emails redirect to the site root with errors in the hash fragment.
+- **`@supabase/supabase-js` must be in `apps/web/package.json`** directly — even though it's in `@mtga/db`, Vercel's build won't resolve it for client-side types without an explicit dependency.
+- **`useSearchParams()` needs a `<Suspense>` boundary** in Next.js App Router pages — extract it into a sub-component wrapped in `<Suspense>` or the build fails with a static generation error.
+
+### React 19 Error Handling
+
+- **React 19 routes event handler errors to error boundaries** — any uncaught throw in onClick/onDrop/etc. triggers the nearest `error.tsx`. Always add `.catch(() => {})` to fire-and-forget `fetch()` calls inside event handlers.
+- **`card.cmc` from the search API can be NaN** for some cards (tokens, special cards) — always guard with `Number(card.cmc) || 0` before using in array index calculations. `buckets[NaN]` = `undefined` and crashes the component.
+- **Drag double-fire**: browsers fire `click` after `dragend` on some setups. Use a `isDraggingRef` to suppress the `onClick` handler during/after a drag.
+
+### Format Rules
+
+- **Brawl = 100 cards exactly** (MTGA uses Historic Brawl rules), singleton, commander required. The old deckValidator had 60 which was wrong.
+- **`FORMAT_RULES` is now exported** from `@mtga/core/deckValidator` so UI components can read format-specific requirements without duplicating logic.
+- **Card search API param**: arena filter is `arena=1` (not `arena_only=true`). API response is a plain array (not `{ cards: [] }`).
 
 ### Environment Variables
 
