@@ -2,10 +2,21 @@
 
 import Link from "next/link";
 
-export default function DeckError({ reset }: { reset: () => void }) {
+export default function DeckError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   return (
     <div className="text-center py-24">
       <p className="text-lg text-gray-300 mb-2">Failed to load deck</p>
+      {error?.message && (
+        <p className="text-xs text-red-400 font-mono bg-gray-900 border border-gray-800 rounded px-4 py-2 mb-4 max-w-xl mx-auto text-left whitespace-pre-wrap">
+          {error.message}
+        </p>
+      )}
       <p className="text-sm text-gray-500 mb-6">
         The deck may have been deleted or you may not have access.
       </p>
