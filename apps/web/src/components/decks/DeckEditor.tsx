@@ -1,18 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { validateDeckStructure, deckToMtgaExport } from "@mtga/core";
 import type { Deck, Format } from "@mtga/core";
-
-import {
-  CardSearchFilters,
-  DEFAULT_FILTERS,
-  type CardFilters,
-} from "@/components/cards/CardSearchFilters";
 import { DeckCardRow, type CardRowData } from "./DeckCardRow";
 import { ManaCurveChart } from "./ManaCurveChart";
-import { ColorBreakdown } from "./ColorBreakdown";
 
 interface DeckEditorProps {
   deck: {
@@ -47,6 +40,22 @@ const TYPE_ORDER = [
   "Other",
 ];
 
+const COLORS = [
+  { value: "W", label: "White" },
+  { value: "U", label: "Blue" },
+  { value: "B", label: "Black" },
+  { value: "R", label: "Red" },
+  { value: "G", label: "Green" },
+  { value: "C", label: "Colorless" },
+];
+
+const RARITY_DOT: Record<string, string> = {
+  common: "bg-gray-400",
+  uncommon: "bg-slate-300",
+  rare: "bg-yellow-400",
+  mythic: "bg-orange-400",
+};
+
 function cardTypeGroup(typeLine: string): string {
   const t = typeLine.toLowerCase();
   if (t.includes("creature")) return "Creature";
@@ -59,57 +68,66 @@ function cardTypeGroup(typeLine: string): string {
   return "Other";
 }
 
+function ManaSymbols({ cost, size = 13 }: { cost: string | null; size?: number }) {
+  if (!cost) return null;
+  const symbols = [...cost.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
+  return (
+    <span className="inline-flex items-center gap-px">
+      {symbols.map((sym, i) => (
+        <img
+          key={i}
+          src={`https://svgs.scryfall.io/card-symbols/${sym.replace(/\//g, "")}.svg`}
+          alt={sym}
+          width={size}
+          height={size}
+          style={{ width: size, height: size }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function DeckEditor({ deck }: DeckEditorProps) {
   const router = useRouter();
   const [deckCards, setDeckCards] = useState<CardRowData[]>(deck.deck_cards);
-  const [activeTab, setActiveTab] = useState<"mainboard" | "sideboard">(
-    "mainboard",
-  );
-  const [filters, setFilters] = useState<CardFilters>(DEFAULT_FILTERS);
+  const [activeTab, setActiveTab] = useState<"mainboard" | "sideboard">("mainboard");
   const [searchResults, setSearchResults] = useState<SearchCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [colors, setColors] = useState<string[]>([]);
+  const [arenaOnly, setArenaOnly] = useState(true);
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const searchRef = useRef<AbortController | null>(null);
 
-  // Run search whenever filters change
+  // Auto-load on mount and whenever filters change
   useEffect(() => {
-    const hasQuery =
-      filters.query ||
-      filters.colors.length > 0 ||
-      filters.cmcValues.length > 0 ||
-      filters.rarities.length > 0 ||
-      filters.types.length > 0 ||
-      filters.setCodes.length > 0 ||
-      filters.format;
-    if (!hasQuery) {
-      setSearchResults([]);
-      return;
-    }
-    const params = new URLSearchParams({ limit: "20" });
-    if (filters.query) params.set("q", filters.query);
-    if (filters.colors.length) params.set("colors", filters.colors.join(","));
-    if (filters.cmcValues.length)
-      params.set("cmc", filters.cmcValues.join(","));
-    if (filters.rarities.length)
-      params.set("rarities", filters.rarities.join(","));
-    if (filters.types.length) params.set("types", filters.types.join(","));
-    if (filters.setCodes.length) params.set("sets", filters.setCodes.join(","));
-    if (filters.format) params.set("format", filters.format);
-    if (filters.arenaOnly) params.set("arena_only", "true");
+    if (searchRef.current) searchRef.current.abort();
+    const ctrl = new AbortController();
+    searchRef.current = ctrl;
 
-    fetch(`/api/cards/search?${params}`)
+    setLoading(true);
+    const params = new URLSearchParams({ limit: "60" });
+    if (query) params.set("q", query);
+    if (colors.length) params.set("colors", colors.join(","));
+    if (arenaOnly) params.set("arena_only", "true");
+
+    fetch(`/api/cards/search?${params}`, { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((data) => setSearchResults(data.cards ?? []))
+      .then((data) => {
+        setSearchResults(data.cards ?? []);
+        setLoading(false);
+      })
       .catch(() => {});
-  }, [filters]);
+  }, [query, colors, arenaOnly]);
 
-  // --- Derived state ---
+  // Derived
   const mainboard = deckCards.filter((c) => !c.is_sideboard);
   const sideboard = deckCards.filter((c) => c.is_sideboard);
   const visibleCards = activeTab === "mainboard" ? mainboard : sideboard;
   const mainCount = mainboard.reduce((s, c) => s + c.quantity, 0);
   const sideCount = sideboard.reduce((s, c) => s + c.quantity, 0);
 
-  // Validation
   const deckForValidation: Deck = {
     id: deck.id,
     userId: "",
@@ -135,43 +153,22 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     validationErrors.filter((e) => e.cardName).map((e) => e.cardName as string),
   );
 
-  // Group cards by type for display
   const grouped = TYPE_ORDER.reduce(
     (acc, type) => {
       const group = visibleCards.filter(
         (c) => c.card && cardTypeGroup(c.card.type_line) === type,
       );
       if (group.length > 0)
-        acc.push({
-          type,
-          cards: group,
-          count: group.reduce((s, c) => s + c.quantity, 0),
-        });
+        acc.push({ type, cards: group, count: group.reduce((s, c) => s + c.quantity, 0) });
       return acc;
     },
     [] as { type: string; cards: CardRowData[]; count: number }[],
   );
-  // Cards with no card data (oracle_id only)
-  const unknownCards = visibleCards.filter((c) => !c.card);
-  if (unknownCards.length > 0) {
-    grouped.push({
-      type: "Unknown",
-      cards: unknownCards,
-      count: unknownCards.reduce((s, c) => s + c.quantity, 0),
-    });
-  }
 
-  // Stats data (mainboard only for curve/colors)
-  const statsCards = mainboard
-    .filter((c) => c.card)
-    .map((c) => ({ ...c.card!, quantity: c.quantity }));
+  const statsCards = mainboard.filter((c) => c.card).map((c) => ({ ...c.card!, quantity: c.quantity }));
 
-  // --- Card operations ---
-  async function upsertCard(
-    oracleId: string,
-    delta: number,
-    isSideboard: boolean,
-  ) {
+  // Card operations
+  async function upsertCard(oracleId: string, delta: number, isSideboard: boolean) {
     const existing = deckCards.find(
       (c) => c.oracle_id === oracleId && c.is_sideboard === isSideboard,
     );
@@ -179,30 +176,22 @@ export function DeckEditor({ deck }: DeckEditorProps) {
 
     if (newQty <= 0) {
       setDeckCards((prev) =>
-        prev.filter(
-          (c) => !(c.oracle_id === oracleId && c.is_sideboard === isSideboard),
-        ),
+        prev.filter((c) => !(c.oracle_id === oracleId && c.is_sideboard === isSideboard)),
       );
-    } else {
+    } else if (existing) {
       setDeckCards((prev) =>
-        existing
-          ? prev.map((c) =>
-              c.oracle_id === oracleId && c.is_sideboard === isSideboard
-                ? { ...c, quantity: newQty }
-                : c,
-            )
-          : prev,
+        prev.map((c) =>
+          c.oracle_id === oracleId && c.is_sideboard === isSideboard
+            ? { ...c, quantity: newQty }
+            : c,
+        ),
       );
     }
 
-    await fetch(`/api/decks/${deck.id}/cards`, {
+    fetch(`/api/decks/${deck.id}/cards`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        oracle_id: oracleId,
-        quantity: newQty,
-        is_sideboard: isSideboard,
-      }),
+      body: JSON.stringify({ oracle_id: oracleId, quantity: newQty, is_sideboard: isSideboard }),
     });
   }
 
@@ -211,7 +200,6 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     const existing = deckCards.find(
       (c) => c.oracle_id === card.oracle_id && c.is_sideboard === isSideboard,
     );
-
     if (existing) {
       setDeckCards((prev) =>
         prev.map((c) =>
@@ -240,21 +228,15 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         },
       ]);
     }
-
     fetch(`/api/decks/${deck.id}/cards`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        oracle_id: card.oracle_id,
-        quantity: 1,
-        is_sideboard: isSideboard,
-      }),
+      body: JSON.stringify({ oracle_id: card.oracle_id, quantity: 1, is_sideboard: isSideboard }),
     });
   }
 
   async function handleExport() {
-    const text = deckToMtgaExport(deckForValidation);
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(deckToMtgaExport(deckForValidation));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -267,162 +249,276 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     router.refresh();
   }
 
+  function toggleColor(c: string) {
+    setColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+  }
+
+  // Map oracle_id -> quantity in current tab for badge display
+  const deckQtyMap = new Map(
+    visibleCards.map((c) => [c.oracle_id, c.quantity]),
+  );
+
   return (
-    <div className="flex flex-col lg:flex-row gap-6 min-h-0">
-      {/* Left — card search */}
-      <div className="lg:w-80 xl:w-96 shrink-0 flex flex-col gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">
-            Add cards — clicking adds to{" "}
-            <span className="text-amber-400">{activeTab}</span>
-          </p>
-          <CardSearchFilters
-            filters={filters}
-            onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
-          />
+    <div
+      className="flex gap-0 -mx-4 -my-8 overflow-hidden"
+      style={{ height: "calc(100vh - 3.5rem)" }}
+    >
+      {/* ── LEFT: Card browser ───────────────────────────────────── */}
+      <div className="flex flex-col flex-1 min-w-0 bg-gray-950 border-r border-gray-800">
+        {/* Filter bar */}
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-gray-900 border-b border-gray-800">
+          {/* Search */}
+          <div className="relative flex-1 max-w-xs">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search cards…"
+              className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+            <svg
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+
+          {/* Color toggles */}
+          <div className="flex items-center gap-1">
+            {COLORS.map(({ value }) => (
+              <button
+                key={value}
+                onClick={() => toggleColor(value)}
+                title={value}
+                className={`w-7 h-7 rounded-full border-2 transition-all ${
+                  colors.includes(value)
+                    ? "border-amber-400 scale-110 shadow-lg shadow-amber-900/50"
+                    : "border-transparent opacity-60 hover:opacity-100"
+                }`}
+              >
+                <img
+                  src={`https://svgs.scryfall.io/card-symbols/${value}.svg`}
+                  alt={value}
+                  className="w-full h-full"
+                />
+              </button>
+            ))}
+          </div>
+
+          {/* Arena toggle */}
+          <button
+            onClick={() => setArenaOnly((v) => !v)}
+            className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+              arenaOnly
+                ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            Arena
+          </button>
+
+          <span className="text-xs text-gray-600 shrink-0">
+            {loading ? "…" : `${searchResults.length} cards`}
+          </span>
+
+          <span className="ml-auto text-xs text-gray-600">
+            Click to add to{" "}
+            <span className="text-amber-400 font-medium">{activeTab}</span>
+          </span>
         </div>
 
-        {searchResults.length > 0 && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-            <div className="max-h-[50vh] overflow-y-auto">
-              {searchResults.map((card) => (
-                <button
-                  key={card.id}
-                  onClick={() => addCardFromSearch(card)}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-800 transition-colors text-left border-b border-gray-800/50 last:border-0"
-                >
-                  {card.image_uri_normal && (
-                    <img
-                      src={card.image_uri_normal}
-                      alt={card.name}
-                      className="w-8 h-11 object-cover rounded shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-200 truncate">
-                      {card.name}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {card.type_line}
-                    </p>
-                  </div>
-                </button>
+        {/* Card grid */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {loading && searchResults.length === 0 ? (
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+              {Array.from({ length: 24 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="aspect-[2.5/3.5] rounded-lg bg-gray-800 animate-pulse"
+                />
               ))}
             </div>
-          </div>
-        )}
+          ) : searchResults.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+              No cards found
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+              {searchResults.map((card) => {
+                const qty = deckQtyMap.get(card.oracle_id) ?? 0;
+                return (
+                  <button
+                    key={card.id}
+                    onClick={() => addCardFromSearch(card)}
+                    className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    {card.image_uri_normal ? (
+                      <img
+                        src={card.image_uri_normal}
+                        alt={card.name}
+                        className="w-full h-full object-cover transition-transform duration-150 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                        <span className="text-xs text-gray-500 text-center px-1 leading-tight">
+                          {card.name}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-150 flex items-end">
+                      <div className="w-full translate-y-full group-hover:translate-y-0 transition-transform duration-150 bg-gradient-to-t from-black/90 to-transparent p-1.5">
+                        <p className="text-white text-[10px] font-semibold leading-tight truncate">
+                          {card.name}
+                        </p>
+                        <ManaSymbols cost={card.mana_cost} size={11} />
+                      </div>
+                    </div>
+
+                    {/* Rarity dot */}
+                    <div
+                      className={`absolute top-1 right-1 w-2 h-2 rounded-full ${RARITY_DOT[card.rarity] ?? "bg-gray-500"} opacity-80`}
+                    />
+
+                    {/* In-deck badge */}
+                    {qty > 0 && (
+                      <div className="absolute top-1 left-1 min-w-[18px] h-[18px] bg-amber-500 text-gray-950 text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                        {qty}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Right — deck */}
-      <div className="flex-1 min-w-0 flex flex-col gap-4">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-gray-100">{deck.name}</h1>
-            <span className="text-xs capitalize text-gray-500">
-              {deck.format}
-            </span>
+      {/* ── RIGHT: Deck panel ────────────────────────────────────── */}
+      <div className="flex flex-col w-72 xl:w-80 shrink-0 bg-gray-950">
+        {/* Deck header */}
+        <div className="shrink-0 px-4 pt-3 pb-2 border-b border-gray-800">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <div className="min-w-0">
+              <h1 className="font-bold text-gray-100 truncate leading-tight">
+                {deck.name}
+              </h1>
+              <span className="text-xs capitalize text-gray-500">{deck.format}</span>
+            </div>
+            <div className="flex gap-1.5 shrink-0">
+              <button
+                onClick={handleExport}
+                className="px-2 py-1 text-[11px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+              >
+                {copied ? "✓" : "Export"}
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-2 py-1 text-[11px] bg-red-950/40 hover:bg-red-900/60 text-red-400 rounded transition-colors"
+              >
+                Del
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={handleExport}
-              className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors"
-            >
-              {copied ? "Copied!" : "Export MTGA"}
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="px-3 py-1.5 text-xs bg-red-950/40 hover:bg-red-900/50 text-red-400 rounded-lg transition-colors disabled:opacity-50"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
 
-        {/* Stats */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-              Cards
-            </p>
-            <p className="text-2xl font-bold text-gray-100">{mainCount}</p>
+          {/* Card count + validation */}
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-sm font-semibold ${
+                mainCount >= 60 ? "text-green-400" : "text-amber-400"
+              }`}
+            >
+              {mainCount}
+            </span>
+            <span className="text-xs text-gray-600">/ 60+ cards</span>
             {sideCount > 0 && (
-              <p className="text-xs text-gray-600">+{sideCount} sideboard</p>
+              <span className="text-xs text-gray-600 ml-auto">
+                +{sideCount} side
+              </span>
+            )}
+            {validationErrors.length > 0 && (
+              <span
+                className="ml-auto text-xs text-red-400"
+                title={validationErrors.map((e) => e.message).join(", ")}
+              >
+                ⚠ {validationErrors.length}
+              </span>
             )}
           </div>
-          <div className="sm:col-span-2">
+
+          {/* Mana curve — compact */}
+          <div className="mt-2">
             <ManaCurveChart cards={statsCards} />
           </div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <ColorBreakdown cards={statsCards} />
-        </div>
-
-        {/* Validation errors */}
-        {validationErrors.length > 0 && (
-          <div className="bg-red-950/30 border border-red-900 rounded-xl p-4">
-            <p className="text-xs font-semibold text-red-400 uppercase tracking-wide mb-2">
-              Deck issues
-            </p>
-            <ul className="space-y-1">
-              {validationErrors.map((e, i) => (
-                <li key={i} className="text-sm text-red-300">
-                  {e.message}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {/* Tabs */}
-        <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-lg p-1 w-fit">
-          <button
-            onClick={() => setActiveTab("mainboard")}
-            className={`px-4 py-1.5 rounded-md text-sm transition-colors ${
-              activeTab === "mainboard"
-                ? "bg-gray-700 text-white"
-                : "text-gray-500 hover:text-gray-300"
-            }`}
-          >
-            Mainboard ({mainCount})
-          </button>
-          <button
-            onClick={() => setActiveTab("sideboard")}
-            className={`px-4 py-1.5 rounded-md text-sm transition-colors ${
-              activeTab === "sideboard"
-                ? "bg-gray-700 text-white"
-                : "text-gray-500 hover:text-gray-300"
-            }`}
-          >
-            Sideboard ({sideCount})
-          </button>
+        <div className="shrink-0 flex border-b border-gray-800">
+          {(["mainboard", "sideboard"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-2 text-xs font-medium transition-colors capitalize ${
+                activeTab === tab
+                  ? "text-amber-400 border-b-2 border-amber-400 -mb-px"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              {tab} ({tab === "mainboard" ? mainCount : sideCount})
+            </button>
+          ))}
         </div>
 
-        {/* Card list grouped by type */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl divide-y divide-gray-800">
+        {/* Card list — scrollable */}
+        <div className="flex-1 overflow-y-auto">
           {grouped.length === 0 ? (
-            <p className="text-center text-gray-600 text-sm py-10">
-              No cards yet — search and click to add
-            </p>
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-700">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              <p className="text-xs">Click cards to add</p>
+            </div>
           ) : (
-            grouped.map(({ type, cards, count }) => (
-              <div key={type} className="p-3">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1 px-2">
-                  {type} ({count})
-                </p>
-                {cards.map((row) => (
-                  <DeckCardRow
-                    key={`${row.oracle_id}-${row.is_sideboard}`}
-                    row={row}
-                    onIncrement={(id, side) => upsertCard(id, 1, side)}
-                    onDecrement={(id, side) => upsertCard(id, -1, side)}
-                    isIllegal={!!row.card && illegalCards.has(row.card.name)}
-                  />
-                ))}
-              </div>
-            ))
+            <div className="py-1">
+              {grouped.map(({ type, cards, count }) => (
+                <div key={type}>
+                  {/* Type header */}
+                  <div className="flex items-center gap-2 px-3 py-1 sticky top-0 bg-gray-950/95 backdrop-blur-sm z-10">
+                    <span className="text-[10px] uppercase tracking-widest text-gray-600 font-semibold">
+                      {type}
+                    </span>
+                    <span className="text-[10px] text-gray-700">{count}</span>
+                    <div className="flex-1 h-px bg-gray-800" />
+                  </div>
+                  {/* Card rows */}
+                  {cards.map((row) => (
+                    <DeckCardRow
+                      key={`${row.oracle_id}-${row.is_sideboard}`}
+                      row={row}
+                      onIncrement={(id, side) => upsertCard(id, 1, side)}
+                      onDecrement={(id, side) => upsertCard(id, -1, side)}
+                      isIllegal={!!row.card && illegalCards.has(row.card.name)}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
