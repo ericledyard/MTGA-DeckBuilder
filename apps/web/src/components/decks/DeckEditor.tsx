@@ -107,8 +107,11 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [textQuery, setTextQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [debouncedTextQuery, setDebouncedTextQuery] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [arenaOnly, setArenaOnly] = useState(true);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [hoveredCard, setHoveredCard] = useState<SearchCard | null>(null);
@@ -116,7 +119,18 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const isDraggingRef = useRef(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-load on mount and whenever filters change
+  // Debounce text inputs — update debounced values 350ms after typing stops
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 350);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedTextQuery(textQuery), 350);
+    return () => clearTimeout(t);
+  }, [textQuery]);
+
+  // Fetch fires only on debounced values + instant filter toggles
   useEffect(() => {
     if (searchRef.current) searchRef.current.abort();
     const ctrl = new AbortController();
@@ -124,8 +138,8 @@ export function DeckEditor({ deck }: DeckEditorProps) {
 
     setLoading(true);
     const params = new URLSearchParams({ limit: "60" });
-    if (query) params.set("q", query);
-    if (textQuery) params.set("text", textQuery);
+    if (debouncedQuery) params.set("q", debouncedQuery);
+    if (debouncedTextQuery) params.set("text", debouncedTextQuery);
     if (colors.length) params.set("colors", colors.join(","));
     if (arenaOnly) params.set("arena", "1");
 
@@ -136,7 +150,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         setLoading(false);
       })
       .catch(() => {});
-  }, [query, textQuery, colors, arenaOnly]);
+  }, [debouncedQuery, debouncedTextQuery, colors, arenaOnly]);
 
   // Derived
   const mainboard = deckCards.filter((c) => !c.is_sideboard);
@@ -344,10 +358,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       <div className="relative flex flex-col flex-1 min-w-0 bg-gray-950 border-r border-gray-800">
         {/* Filter bar */}
         <div className="shrink-0 flex flex-col bg-gray-900 border-b border-gray-800">
-          {/* Row 1: name search + colors + arena + count */}
+          {/* Row 1: name search + card count + Filters button */}
           <div className="flex items-center gap-2 px-3 py-2">
-            {/* Search */}
-            <div className="relative flex-1 max-w-xs">
+            <div className="relative flex-1">
               <input
                 type="text"
                 value={query}
@@ -370,48 +383,38 @@ export function DeckEditor({ deck }: DeckEditorProps) {
               </svg>
             </div>
 
-            {/* Color toggles */}
-            <div className="flex items-center gap-1">
-              {COLORS.map(({ value }) => (
+            <span className="text-xs text-gray-600 shrink-0">
+              {loading ? "…" : `${searchResults.length}`}
+            </span>
+
+            {/* Filters toggle */}
+            {(() => {
+              const activeCount = colors.length + (!arenaOnly ? 1 : 0);
+              return (
                 <button
-                  key={value}
-                  onClick={() => toggleColor(value)}
-                  title={value}
-                  className={`w-7 h-7 rounded-full border-2 transition-all ${
-                    colors.includes(value)
-                      ? "border-amber-400 scale-110 shadow-lg shadow-amber-900/50"
-                      : "border-transparent opacity-60 hover:opacity-100"
+                  onClick={() => setFiltersExpanded((v) => !v)}
+                  aria-expanded={filtersExpanded}
+                  className={`shrink-0 px-2.5 py-1 rounded text-xs font-bold border transition-all ${
+                    filtersExpanded || activeCount > 0
+                      ? "bg-amber-500 border-amber-400 text-gray-900 shadow-md shadow-amber-900/40"
+                      : "bg-gray-800 border-gray-700 text-gray-300 hover:bg-amber-500/20 hover:border-amber-500/50 hover:text-amber-300"
                   }`}
                 >
-                  <img
-                    src={`https://svgs.scryfall.io/card-symbols/${value}.svg`}
-                    alt={value}
-                    className="w-full h-full"
-                  />
+                  Filters
+                  {activeCount > 0 && (
+                    <span
+                      className={`ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold ${
+                        filtersExpanded
+                          ? "bg-gray-900 text-amber-400"
+                          : "bg-amber-400 text-gray-900"
+                      }`}
+                    >
+                      {activeCount}
+                    </span>
+                  )}
                 </button>
-              ))}
-            </div>
-
-            {/* Arena toggle */}
-            <button
-              onClick={() => setArenaOnly((v) => !v)}
-              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-                arenaOnly
-                  ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
-                  : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              Arena
-            </button>
-
-            <span className="text-xs text-gray-600 shrink-0">
-              {loading ? "…" : `${searchResults.length} cards`}
-            </span>
-
-            <span className="ml-auto text-xs text-gray-600">
-              Click to add to{" "}
-              <span className="text-amber-400 font-medium">{activeTab}</span>
-            </span>
+              );
+            })()}
           </div>
 
           {/* Row 2: oracle text search */}
@@ -425,6 +428,48 @@ export function DeckEditor({ deck }: DeckEditorProps) {
               className="w-full px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
             />
           </div>
+
+          {/* Row 3 (expanded): color toggles + arena + hint */}
+          {filtersExpanded && (
+            <div className="flex items-center gap-2 px-3 pb-2 pt-1 border-t border-gray-800/60">
+              <div className="flex items-center gap-1">
+                {COLORS.map(({ value }) => (
+                  <button
+                    key={value}
+                    onClick={() => toggleColor(value)}
+                    title={value}
+                    className={`w-7 h-7 rounded-full border-2 transition-all ${
+                      colors.includes(value)
+                        ? "border-amber-400 scale-110 shadow-lg shadow-amber-900/50"
+                        : "border-transparent opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <img
+                      src={`https://svgs.scryfall.io/card-symbols/${value}.svg`}
+                      alt={value}
+                      className="w-full h-full"
+                    />
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setArenaOnly((v) => !v)}
+                className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                  arenaOnly
+                    ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                    : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                Arena
+              </button>
+
+              <span className="ml-auto text-xs text-gray-600">
+                Click to add to{" "}
+                <span className="text-amber-400 font-medium">{activeTab}</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Card grid */}
