@@ -155,10 +155,13 @@ function LegalityTable({ legalities }: { legalities: LegalityRow[] }) {
 
 export default async function CardDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ ref?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, { ref }] = await Promise.all([params, searchParams]);
+  const backHref = ref ? decodeURIComponent(ref) : "/cards";
   const supabase = createServiceClient();
 
   const { data: card, error } = await supabase
@@ -223,7 +226,7 @@ export default async function CardDetailPage({
   return (
     <div className="max-w-5xl mx-auto">
       <Link
-        href="/cards"
+        href={backHref}
         className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-white mb-6 transition-colors"
       >
         ← Back to card browser
