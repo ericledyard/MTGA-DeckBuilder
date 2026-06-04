@@ -383,9 +383,14 @@ export type Database = {
       search_cards: {
         Args: {
           p_arena_only?: boolean
+          p_cmc_values?: number[]
+          p_colors?: string[]
           p_format?: string
           p_limit?: number
           p_query?: string
+          p_rarities?: string[]
+          p_set_codes?: string[]
+          p_types?: string[]
         }
         Returns: {
           available_on_arena: boolean

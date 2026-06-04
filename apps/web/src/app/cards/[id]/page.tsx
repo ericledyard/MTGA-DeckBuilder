@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@mtga/db";
 import type { Database } from "@mtga/db";
+import { ManaCost } from "@/components/ui/ManaCost";
 
 type CardRow = Database["public"]["Tables"]["cards"]["Row"];
 type LegalityRow = Database["public"]["Tables"]["card_legalities"]["Row"];
@@ -70,17 +71,6 @@ function RarityLabel({ rarity }: { rarity: string }) {
   return (
     <span className="text-sm font-bold capitalize" style={style}>
       {rarity}
-    </span>
-  );
-}
-
-function ManaCost({ cost }: { cost: string | null }) {
-  if (!cost) return null;
-  // Convert {W}{U}{B} → W U B (space-separated, strip braces)
-  const text = cost.replace(/\{([^}]+)\}/g, "$1 ").trim();
-  return (
-    <span className="font-mono text-base text-amber-300 tracking-widest bg-gray-800/80 px-3 py-1 rounded-lg border border-gray-700">
-      {text}
     </span>
   );
 }
@@ -224,7 +214,9 @@ export default async function CardDetailPage({
             <h1 className="text-3xl font-bold text-white leading-tight">
               {c.name}
             </h1>
-            <ManaCost cost={c.mana_cost} />
+            <span className="bg-gray-800/80 px-3 py-1.5 rounded-lg border border-gray-700 flex-shrink-0">
+              <ManaCost cost={c.mana_cost} size={24} />
+            </span>
           </div>
 
           {/* Badges */}
