@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -11,27 +11,34 @@ const URL_ERROR_MESSAGES: Record<string, string> = {
   access_denied: "Access denied. The link may have already been used.",
 };
 
-export default function LoginPage() {
-  const router = useRouter();
+// Isolated so useSearchParams is inside a Suspense boundary
+function UrlErrorReader({
+  onError,
+}: {
+  onError: (msg: string) => void;
+}) {
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
-    // Handle errors from Supabase redirects (query params or hash fragment)
     const urlError =
       searchParams.get("error") ??
       new URLSearchParams(window.location.hash.slice(1)).get("error_code");
     if (urlError) {
-      setError(
+      onError(
         URL_ERROR_MESSAGES[urlError] ??
           searchParams.get("error_description") ??
           "Authentication error. Please try again.",
       );
     }
-  }, [searchParams]);
+  }, [searchParams, onError]);
+  return null;
+}
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,6 +62,9 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-sm">
+      <Suspense>
+        <UrlErrorReader onError={setError} />
+      </Suspense>
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold text-amber-400 mb-1">
           MTGA Deck Builder
