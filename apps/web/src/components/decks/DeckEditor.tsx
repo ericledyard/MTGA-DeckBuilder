@@ -111,8 +111,10 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const [arenaOnly, setArenaOnly] = useState(true);
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [hoveredCard, setHoveredCard] = useState<SearchCard | null>(null);
   const searchRef = useRef<AbortController | null>(null);
   const isDraggingRef = useRef(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-load on mount and whenever filters change
   useEffect(() => {
@@ -273,6 +275,8 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   // Drag-and-drop handlers
   function handleDragStart(e: React.DragEvent, card: SearchCard) {
     isDraggingRef.current = true;
+    setHoveredCard(null);
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     e.dataTransfer.setData("application/json", JSON.stringify(card));
     e.dataTransfer.effectAllowed = "copy";
   }
@@ -282,6 +286,16 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     setTimeout(() => {
       isDraggingRef.current = false;
     }, 50);
+  }
+
+  function handleCardMouseEnter(card: SearchCard) {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => setHoveredCard(card), 80);
+  }
+
+  function handleCardMouseLeave() {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setHoveredCard(null);
   }
 
   function handleDrop(e: React.DragEvent, isSideboard: boolean) {
@@ -327,7 +341,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       style={{ height: "calc(100vh - 3.5rem)" }}
     >
       {/* ── LEFT: Card browser ───────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 bg-gray-950 border-r border-gray-800">
+      <div className="relative flex flex-col flex-1 min-w-0 bg-gray-950 border-r border-gray-800">
         {/* Filter bar */}
         <div className="shrink-0 flex flex-col bg-gray-900 border-b border-gray-800">
           {/* Row 1: name search + colors + arena + count */}
@@ -441,6 +455,8 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                     draggable
                     onDragStart={(e) => handleDragStart(e, card)}
                     onDragEnd={handleDragEnd}
+                    onMouseEnter={() => handleCardMouseEnter(card)}
+                    onMouseLeave={handleCardMouseLeave}
                     className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-grab active:cursor-grabbing"
                   >
                     {card.image_uri_normal ? (
@@ -485,6 +501,23 @@ export function DeckEditor({ deck }: DeckEditorProps) {
             </div>
           )}
         </div>
+
+        {/* Hover zoom overlay — centered within the card browser panel */}
+        {hoveredCard?.image_uri_normal && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+            <div
+              className="relative"
+              style={{ width: "80%", aspectRatio: "2.5/3.5", maxHeight: "80%" }}
+            >
+              <img
+                src={hoveredCard.image_uri_normal}
+                alt={hoveredCard.name}
+                className="w-full h-full object-contain rounded-xl shadow-2xl shadow-black/80"
+                style={{ filter: "drop-shadow(0 0 32px rgba(0,0,0,0.9))" }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── RIGHT: Deck panel ────────────────────────────────────── */}
