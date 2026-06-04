@@ -1,16 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+
+const URL_ERROR_MESSAGES: Record<string, string> = {
+  auth_callback_failed: "The sign-in link failed. Please try again.",
+  otp_expired: "The confirmation link expired. Please register again.",
+  access_denied: "Access denied. The link may have already been used.",
+};
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Handle errors from Supabase redirects (query params or hash fragment)
+    const urlError =
+      searchParams.get("error") ??
+      new URLSearchParams(window.location.hash.slice(1)).get("error_code");
+    if (urlError) {
+      setError(
+        URL_ERROR_MESSAGES[urlError] ??
+          searchParams.get("error_description") ??
+          "Authentication error. Please try again.",
+      );
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

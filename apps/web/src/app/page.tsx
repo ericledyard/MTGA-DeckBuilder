@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthErrorRedirect } from "@/components/ui/AuthErrorRedirect";
 
 const FEATURES = [
   {
@@ -36,6 +37,7 @@ const FEATURES = [
 export default function HomePage() {
   return (
     <div className="space-y-12">
+      <AuthErrorRedirect />
       <section className="text-center space-y-4 py-12">
         <h1 className="text-4xl font-bold text-amber-400">MTGA Deck Builder</h1>
         <p className="text-gray-400 text-lg max-w-xl mx-auto">
