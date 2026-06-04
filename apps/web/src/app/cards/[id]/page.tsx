@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@mtga/db";
 import type { Database } from "@mtga/db";
 import { ManaCost } from "@/components/ui/ManaCost";
+import { CardImageZoom } from "@/components/cards/CardImageZoom";
 
 type CardRow = Database["public"]["Tables"]["cards"]["Row"];
 type LegalityRow = Database["public"]["Tables"]["card_legalities"]["Row"];
@@ -174,7 +174,8 @@ export default async function CardDetailPage({
     .eq("oracle_id", card.oracle_id);
 
   const c = card as CardRow & { sets: { icon_svg_uri: string | null } | null };
-  const image = c.image_uri_large ?? c.image_uri_normal;
+  const thumbSrc = c.image_uri_normal ?? c.image_uri_large;
+  const largeSrc = c.image_uri_large ?? c.image_uri_normal;
   const setIconUri = c.sets?.icon_svg_uri ?? null;
 
   return (
@@ -187,19 +188,10 @@ export default async function CardDetailPage({
       </Link>
 
       <div className="flex flex-col md:flex-row gap-10">
-        {/* Card image */}
+        {/* Card image — hover to zoom */}
         <div className="flex-shrink-0 w-full md:w-64 lg:w-72">
-          {image ? (
-            <div className="relative aspect-[5/7] rounded-2xl overflow-hidden shadow-2xl shadow-black/70 ring-1 ring-white/5">
-              <Image
-                src={image}
-                alt={c.name}
-                fill
-                sizes="(max-width: 768px) 100vw, 288px"
-                className="object-cover"
-                priority
-              />
-            </div>
+          {thumbSrc && largeSrc ? (
+            <CardImageZoom src={thumbSrc} largeSrc={largeSrc} alt={c.name} />
           ) : (
             <div className="aspect-[5/7] rounded-2xl bg-gray-800 flex items-center justify-center text-gray-600 ring-1 ring-white/5">
               No image
