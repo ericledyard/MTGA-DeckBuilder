@@ -53,6 +53,32 @@ const COLORS = [
   { value: "C", label: "Colorless" },
 ];
 
+const CMC_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+
+const RARITIES = [
+  { value: "common", label: "Common", color: "#c0c0c0" },
+  { value: "uncommon", label: "Uncommon", color: "#a0b8c8" },
+  { value: "rare", label: "Rare", color: "#c8a800" },
+  { value: "mythic", label: "Mythic", color: "#e07020" },
+];
+
+const FILTER_TYPES = [
+  "Creature",
+  "Instant",
+  "Sorcery",
+  "Enchantment",
+  "Artifact",
+  "Planeswalker",
+  "Battle",
+  "Land",
+];
+
+type SetOption = { code: string; name: string; icon_svg_uri: string | null };
+
+function toggle<T>(arr: T[], v: T): T[] {
+  return arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
+}
+
 const RARITY_DOT: Record<string, string> = {
   common: "bg-gray-400",
   uncommon: "bg-slate-300",
@@ -111,6 +137,13 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const [debouncedTextQuery, setDebouncedTextQuery] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [arenaOnly, setArenaOnly] = useState(true);
+  const [cmcValues, setCmcValues] = useState<number[]>([]);
+  const [rarities, setRarities] = useState<string[]>([]);
+  const [filterTypes, setFilterTypes] = useState<string[]>([]);
+  const [setCodes, setSetCodes] = useState<string[]>([]);
+  const [sets, setSets] = useState<SetOption[]>([]);
+  const [setSearch, setSetSearch] = useState("");
+  const [setsExpanded, setSetsExpanded] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -142,6 +175,10 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     if (debouncedTextQuery) params.set("text", debouncedTextQuery);
     if (colors.length) params.set("colors", colors.join(","));
     if (arenaOnly) params.set("arena", "1");
+    if (cmcValues.length) params.set("cmc", cmcValues.join(","));
+    if (rarities.length) params.set("rarities", rarities.join(","));
+    if (filterTypes.length) params.set("types", filterTypes.join(","));
+    if (setCodes.length) params.set("sets", setCodes.join(","));
 
     fetch(`/api/cards/search?${params}`, { signal: ctrl.signal })
       .then((r) => r.json())
@@ -150,7 +187,25 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         setLoading(false);
       })
       .catch(() => {});
-  }, [debouncedQuery, debouncedTextQuery, colors, arenaOnly]);
+  }, [
+    debouncedQuery,
+    debouncedTextQuery,
+    colors,
+    arenaOnly,
+    cmcValues,
+    rarities,
+    filterTypes,
+    setCodes,
+  ]);
+
+  // Fetch sets lazily the first time the filter panel opens
+  useEffect(() => {
+    if (!filtersExpanded || sets.length > 0) return;
+    fetch("/api/cards/sets")
+      .then((r) => r.json())
+      .then(setSets)
+      .catch(() => {});
+  }, [filtersExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived
   const mainboard = deckCards.filter((c) => !c.is_sideboard);
@@ -389,7 +444,13 @@ export function DeckEditor({ deck }: DeckEditorProps) {
 
             {/* Filters toggle */}
             {(() => {
-              const activeCount = colors.length + (!arenaOnly ? 1 : 0);
+              const activeCount =
+                colors.length +
+                cmcValues.length +
+                rarities.length +
+                filterTypes.length +
+                setCodes.length +
+                (!arenaOnly ? 1 : 0);
               return (
                 <button
                   onClick={() => setFiltersExpanded((v) => !v)}
@@ -429,45 +490,215 @@ export function DeckEditor({ deck }: DeckEditorProps) {
             />
           </div>
 
-          {/* Row 3 (expanded): color toggles + arena + hint */}
+          {/* Expanded filter panel */}
           {filtersExpanded && (
-            <div className="flex items-center gap-2 px-3 pb-2 pt-1 border-t border-gray-800/60">
-              <div className="flex items-center gap-1">
-                {COLORS.map(({ value }) => (
-                  <button
-                    key={value}
-                    onClick={() => toggleColor(value)}
-                    title={value}
-                    className={`w-7 h-7 rounded-full border-2 transition-all ${
-                      colors.includes(value)
-                        ? "border-amber-400 scale-110 shadow-lg shadow-amber-900/50"
-                        : "border-transparent opacity-60 hover:opacity-100"
-                    }`}
-                  >
-                    <img
-                      src={`https://svgs.scryfall.io/card-symbols/${value}.svg`}
-                      alt={value}
-                      className="w-full h-full"
-                    />
-                  </button>
-                ))}
+            <div className="border-t border-gray-800/60 px-3 py-2 space-y-3 max-h-72 overflow-y-auto">
+              {/* Color + Arena row */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1">
+                  {COLORS.map(({ value }) => (
+                    <button
+                      key={value}
+                      onClick={() => toggleColor(value)}
+                      title={value}
+                      className={`w-7 h-7 rounded-full border-2 transition-all ${
+                        colors.includes(value)
+                          ? "border-amber-400 scale-110 shadow-lg shadow-amber-900/50"
+                          : "border-transparent opacity-60 hover:opacity-100"
+                      }`}
+                    >
+                      <img
+                        src={`https://svgs.scryfall.io/card-symbols/${value}.svg`}
+                        alt={value}
+                        className="w-full h-full"
+                      />
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setArenaOnly((v) => !v)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                    arenaOnly
+                      ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                      : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
+                  }`}
+                >
+                  Arena
+                </button>
+                <span className="ml-auto text-xs text-gray-600 shrink-0">
+                  Click to add to{" "}
+                  <span className="text-amber-400 font-medium">
+                    {activeTab}
+                  </span>
+                </span>
               </div>
 
-              <button
-                onClick={() => setArenaOnly((v) => !v)}
-                className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-                  arenaOnly
-                    ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
-                    : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                Arena
-              </button>
+              {/* CMC */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
+                  CMC
+                </p>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {CMC_OPTIONS.map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setCmcValues((prev) => toggle(prev, v))}
+                      className={`w-7 h-7 rounded-full border text-xs font-bold transition-all ${
+                        cmcValues.includes(v)
+                          ? "bg-amber-500 border-amber-400 text-gray-900"
+                          : "bg-gray-800 border-gray-600 text-gray-300 hover:border-amber-500/60"
+                      }`}
+                    >
+                      {v === 7 ? "7+" : v}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-              <span className="ml-auto text-xs text-gray-600">
-                Click to add to{" "}
-                <span className="text-amber-400 font-medium">{activeTab}</span>
-              </span>
+              {/* Rarity */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
+                  Rarity
+                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {RARITIES.map((r) => (
+                    <button
+                      key={r.value}
+                      onClick={() =>
+                        setRarities((prev) => toggle(prev, r.value))
+                      }
+                      className={`px-2.5 py-1 rounded border text-xs font-bold transition-all ${
+                        rarities.includes(r.value)
+                          ? "border-current bg-black/30"
+                          : "border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300"
+                      }`}
+                      style={
+                        rarities.includes(r.value)
+                          ? { color: r.color, borderColor: r.color }
+                          : {}
+                      }
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Type */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
+                  Type
+                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {FILTER_TYPES.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setFilterTypes((prev) => toggle(prev, t))}
+                      className={`px-2.5 py-1 rounded border text-xs font-medium transition-all ${
+                        filterTypes.includes(t)
+                          ? "bg-amber-500/20 border-amber-500/60 text-amber-300"
+                          : "bg-gray-800/60 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Expansion */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setSetsExpanded((v) => !v)}
+                  className="flex items-center justify-between w-full text-left"
+                >
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                    Expansion
+                    {setCodes.length > 0 && (
+                      <span className="ml-1.5 text-amber-400 normal-case">
+                        ({setCodes.length})
+                      </span>
+                    )}
+                  </p>
+                  <span className="text-gray-600 text-xs">
+                    {setsExpanded ? "▲" : "▼"}
+                  </span>
+                </button>
+                {setsExpanded && (
+                  <div className="mt-1.5 space-y-1.5">
+                    <input
+                      type="search"
+                      placeholder="Filter sets…"
+                      value={setSearch}
+                      onChange={(e) => setSetSearch(e.target.value)}
+                      className="w-full px-2.5 py-1 rounded bg-gray-800 border border-gray-700 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-500"
+                    />
+                    <div className="max-h-36 overflow-y-auto space-y-0.5">
+                      {sets
+                        .filter((s) =>
+                          s.name
+                            .toLowerCase()
+                            .includes(setSearch.toLowerCase()),
+                        )
+                        .map((s) => {
+                          const active = setCodes.includes(s.code);
+                          return (
+                            <button
+                              key={s.code}
+                              type="button"
+                              onClick={() =>
+                                setSetCodes((prev) => toggle(prev, s.code))
+                              }
+                              className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded text-xs text-left transition-colors ${
+                                active
+                                  ? "bg-amber-500/20 border border-amber-500/40 text-amber-200"
+                                  : "border border-transparent text-gray-300 hover:bg-gray-800"
+                              }`}
+                            >
+                              {s.icon_svg_uri && (
+                                <img
+                                  src={s.icon_svg_uri}
+                                  alt=""
+                                  width={14}
+                                  height={14}
+                                  className="opacity-70 shrink-0"
+                                />
+                              )}
+                              <span className="flex-1 truncate">{s.name}</span>
+                              <span className="text-gray-600 uppercase shrink-0">
+                                {s.code}
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Reset */}
+              {(colors.length > 0 ||
+                cmcValues.length > 0 ||
+                rarities.length > 0 ||
+                filterTypes.length > 0 ||
+                setCodes.length > 0 ||
+                !arenaOnly) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setColors([]);
+                    setCmcValues([]);
+                    setRarities([]);
+                    setFilterTypes([]);
+                    setSetCodes([]);
+                    setArenaOnly(true);
+                  }}
+                  className="text-xs text-gray-500 hover:text-amber-400 transition-colors underline underline-offset-2"
+                >
+                  Reset filters
+                </button>
+              )}
             </div>
           )}
         </div>
