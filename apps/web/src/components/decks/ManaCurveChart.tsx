@@ -1,22 +1,12 @@
 "use client";
 
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
-
 interface ManaCurveChartProps {
   cards: { cmc: number; quantity: number; type_line: string }[];
 }
 
 export function ManaCurveChart({ cards }: ManaCurveChartProps) {
   const buckets = Array.from({ length: 8 }, (_, i) => ({
-    cmc: i === 7 ? "7+" : String(i),
+    label: i === 7 ? "7+" : String(i),
     creatures: 0,
     other: 0,
   }));
@@ -32,51 +22,51 @@ export function ManaCurveChart({ cards }: ManaCurveChartProps) {
 
   return (
     <div>
-      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide">
+      <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-1.5">
         Mana Curve
       </p>
-      <ResponsiveContainer width="100%" height={80}>
-        <BarChart data={buckets} barSize={14} barGap={2}>
-          <XAxis
-            dataKey="cmc"
-            tick={{ fontSize: 10, fill: "#6b7280" }}
-            axisLine={false}
-            tickLine={false}
-          />
-          <YAxis domain={[0, max]} hide />
-          <Tooltip
-            cursor={{ fill: "rgba(255,255,255,0.05)" }}
-            contentStyle={{
-              background: "#1f2937",
-              border: "1px solid #374151",
-              borderRadius: 6,
-              fontSize: 12,
-            }}
-            labelStyle={{ color: "#d1d5db" }}
-            itemStyle={{ color: "#9ca3af" }}
-          />
-          <Bar
-            dataKey="creatures"
-            stackId="a"
-            name="Creatures"
-            fill="#f59e0b"
-            radius={[0, 0, 0, 0]}
-          />
-          <Bar
-            dataKey="other"
-            stackId="a"
-            name="Other"
-            fill="#6366f1"
-            radius={[2, 2, 0, 0]}
-          />
-        </BarChart>
-      </ResponsiveContainer>
+      <div className="flex items-end gap-0.5 h-12">
+        {buckets.map((bucket) => {
+          const total = bucket.creatures + bucket.other;
+          const creatureH = total > 0 ? (bucket.creatures / max) * 100 : 0;
+          const otherH = total > 0 ? (bucket.other / max) * 100 : 0;
+          return (
+            <div
+              key={bucket.label}
+              className="flex-1 flex flex-col items-center gap-0"
+              title={`${bucket.label} mana: ${total} cards`}
+            >
+              <div className="w-full flex flex-col justify-end" style={{ height: "40px" }}>
+                {otherH > 0 && (
+                  <div
+                    className="w-full bg-indigo-500 rounded-t-sm"
+                    style={{ height: `${otherH}%` }}
+                  />
+                )}
+                {creatureH > 0 && (
+                  <div
+                    className="w-full bg-amber-500"
+                    style={{
+                      height: `${creatureH}%`,
+                      borderRadius: otherH === 0 ? "2px 2px 0 0" : "0",
+                    }}
+                  />
+                )}
+                {total === 0 && (
+                  <div className="w-full bg-gray-800" style={{ height: "2px" }} />
+                )}
+              </div>
+              <span className="text-[9px] text-gray-600 mt-0.5">{bucket.label}</span>
+            </div>
+          );
+        })}
+      </div>
       <div className="flex gap-3 mt-1">
-        <span className="flex items-center gap-1 text-xs text-gray-500">
+        <span className="flex items-center gap-1 text-[10px] text-gray-600">
           <span className="w-2 h-2 rounded-sm bg-amber-500 inline-block" />
           Creatures
         </span>
-        <span className="flex items-center gap-1 text-xs text-gray-500">
+        <span className="flex items-center gap-1 text-[10px] text-gray-600">
           <span className="w-2 h-2 rounded-sm bg-indigo-500 inline-block" />
           Other
         </span>

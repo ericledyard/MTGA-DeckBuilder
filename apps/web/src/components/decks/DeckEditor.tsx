@@ -99,6 +99,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const searchRef = useRef<AbortController | null>(null);
+  const isDraggingRef = useRef(false);
 
   // Auto-load on mount and whenever filters change
   useEffect(() => {
@@ -237,8 +238,16 @@ export function DeckEditor({ deck }: DeckEditorProps) {
 
   // Drag-and-drop handlers
   function handleDragStart(e: React.DragEvent, card: SearchCard) {
+    isDraggingRef.current = true;
     e.dataTransfer.setData("application/json", JSON.stringify(card));
     e.dataTransfer.effectAllowed = "copy";
+  }
+
+  function handleDragEnd() {
+    // Small delay so the click event (which fires after dragend on some browsers) is suppressed
+    setTimeout(() => {
+      isDraggingRef.current = false;
+    }, 50);
   }
 
   function handleDrop(e: React.DragEvent, isSideboard: boolean) {
@@ -373,9 +382,10 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                 return (
                   <button
                     key={card.id}
-                    onClick={() => addCardFromSearch(card)}
+                    onClick={() => { if (!isDraggingRef.current) addCardFromSearch(card); }}
                     draggable
                     onDragStart={(e) => handleDragStart(e, card)}
+                    onDragEnd={handleDragEnd}
                     className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-grab active:cursor-grabbing"
                   >
                     {card.image_uri_normal ? (
