@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { validateDeckStructure, deckToMtgaExport } from "@mtga/core";
+import { validateDeckStructure, deckToMtgaExport, FORMAT_RULES } from "@mtga/core";
 import type { Deck, Format } from "@mtga/core";
 import { DeckCardRow, type CardRowData } from "./DeckCardRow";
 import { ManaCurveChart } from "./ManaCurveChart";
@@ -465,29 +465,32 @@ export function DeckEditor({ deck }: DeckEditorProps) {
           </div>
 
           {/* Card count + validation */}
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-sm font-semibold ${
-                mainCount >= 60 ? "text-green-400" : "text-amber-400"
-              }`}
-            >
-              {mainCount}
-            </span>
-            <span className="text-xs text-gray-600">/ 60+ cards</span>
-            {sideCount > 0 && (
-              <span className="text-xs text-gray-600 ml-auto">
-                +{sideCount} side
-              </span>
-            )}
-            {validationErrors.length > 0 && (
-              <span
-                className="ml-auto text-xs text-red-400"
-                title={validationErrors.map((e) => e.message).join(", ")}
-              >
-                ⚠ {validationErrors.length}
-              </span>
-            )}
-          </div>
+          {(() => {
+            const rules = FORMAT_RULES[deck.format as Format];
+            const min = rules?.minDeckSize ?? 60;
+            const max = rules?.maxDeckSize ?? null;
+            const met = max !== null ? mainCount === max : mainCount >= min;
+            const label = max !== null ? `/ ${max} cards` : `/ ${min}+ cards`;
+            return (
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-semibold ${met ? "text-green-400" : "text-amber-400"}`}>
+                  {mainCount}
+                </span>
+                <span className="text-xs text-gray-600">{label}</span>
+                {sideCount > 0 && (
+                  <span className="text-xs text-gray-600 ml-auto">+{sideCount} side</span>
+                )}
+                {validationErrors.length > 0 && (
+                  <span
+                    className="ml-auto text-xs text-red-400"
+                    title={validationErrors.map((e) => e.message).join(", ")}
+                  >
+                    ⚠ {validationErrors.length}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Mana curve — compact */}
           <div className="mt-2">

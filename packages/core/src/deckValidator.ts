@@ -21,95 +21,21 @@ interface FormatRules {
   requiresCommander: boolean;
 }
 
-const FORMAT_RULES: Record<Format, FormatRules> = {
-  standard: {
-    minDeckSize: 60,
-    maxDeckSize: null,
-    maxSideboardSize: 15,
-    maxCopies: 4,
-    singleton: false,
-    requiresCommander: false,
-  },
-  alchemy: {
-    minDeckSize: 60,
-    maxDeckSize: null,
-    maxSideboardSize: 15,
-    maxCopies: 4,
-    singleton: false,
-    requiresCommander: false,
-  },
-  historic: {
-    minDeckSize: 60,
-    maxDeckSize: null,
-    maxSideboardSize: 15,
-    maxCopies: 4,
-    singleton: false,
-    requiresCommander: false,
-  },
-  timeless: {
-    minDeckSize: 60,
-    maxDeckSize: null,
-    maxSideboardSize: 15,
-    maxCopies: 4,
-    singleton: false,
-    requiresCommander: false,
-  },
-  pioneer: {
-    minDeckSize: 60,
-    maxDeckSize: null,
-    maxSideboardSize: 15,
-    maxCopies: 4,
-    singleton: false,
-    requiresCommander: false,
-  },
-  modern: {
-    minDeckSize: 60,
-    maxDeckSize: null,
-    maxSideboardSize: 15,
-    maxCopies: 4,
-    singleton: false,
-    requiresCommander: false,
-  },
-  legacy: {
-    minDeckSize: 60,
-    maxDeckSize: null,
-    maxSideboardSize: 15,
-    maxCopies: 4,
-    singleton: false,
-    requiresCommander: false,
-  },
-  vintage: {
-    minDeckSize: 60,
-    maxDeckSize: null,
-    maxSideboardSize: 15,
-    maxCopies: 4,
-    singleton: false,
-    requiresCommander: false,
-  },
-  pauper: {
-    minDeckSize: 60,
-    maxDeckSize: null,
-    maxSideboardSize: 15,
-    maxCopies: 4,
-    singleton: false,
-    requiresCommander: false,
-  },
-  brawl: {
-    minDeckSize: 60,
-    maxDeckSize: 60,
-    maxSideboardSize: 0,
-    maxCopies: 1,
-    singleton: true,
-    requiresCommander: true,
-  },
-  commander: {
-    minDeckSize: 100,
-    maxDeckSize: 100,
-    maxSideboardSize: 0,
-    maxCopies: 1,
-    singleton: true,
-    requiresCommander: true,
-  },
+export const FORMAT_RULES: Record<Format, FormatRules> = {
+  // 60-card constructed formats — min 60, no max, 15 sideboard, 4 copies
+  standard:  { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  alchemy:   { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  historic:  { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  timeless:  { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  pioneer:   { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  modern:    { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  legacy:    { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  // Vintage: 60-card minimum, restricted list limits many cards to 1 copy (not enforced here without banlist)
+  vintage:   { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  pauper:    { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  // Singleton commander formats — exactly 100 cards, no sideboard
+  brawl:     { minDeckSize: 100, maxDeckSize: 100, maxSideboardSize: 0, maxCopies: 1, singleton: true, requiresCommander: true },
+  commander: { minDeckSize: 100, maxDeckSize: 100, maxSideboardSize: 0, maxCopies: 1, singleton: true, requiresCommander: true },
 };
 
 // Basic lands that are exempt from copy limits
