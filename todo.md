@@ -1,6 +1,6 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-03_
+_Last updated: 2026-06-03 (session 2)_
 _Branch: phase1/foundation_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
@@ -70,6 +70,17 @@ Full-featured MTG Arena deck management platform:
 - [x] Deployed to production: https://mtga-deckbuilder.vercel.app
 - [x] `next.config.ts`: Scryfall image domains whitelisted (cards.scryfall.io, imgs.scryfall.io, svgs.scryfall.io)
 - [x] All packages typecheck clean
+
+### ✅ Phase 1.5 — Card Browser & Detail Polish (completed session 2)
+
+- [x] `components/ui/ManaCost.tsx`: Renders Scryfall SVG mana symbols (W/U/B/R/G/C + hybrid + phyrexian) — replaces text like "1 U U"
+- [x] `components/cards/CardSearchFilters.tsx`: Full MTGA-style advanced filter panel — color (subset/AND logic via `<@`), CMC (0–7+), rarity, type, expansion (scrollable with set icons), format, arena-only
+- [x] `packages/db/migrations/003_advanced_search.sql`: Extended `search_cards` RPC with `p_colors`, `p_cmc_values`, `p_rarities`, `p_types`, `p_set_codes` params; color uses PostgreSQL `<@` subset operator
+- [x] `/api/cards/sets` route: returns all sets for the expansion picker
+- [x] `components/cards/CardImageZoom.tsx`: Hover-to-zoom on card detail page (pointer-events:none overlay, Escape/click-away to close)
+- [x] `components/cards/CardPrintingsCarousel.tsx`: All printings stacked fan on detail page — slide cursor left/right to browse, click active card to zoom correct printing; `zoomedPrinting` state captures printing at click time (fixes zoom showing wrong edition)
+- [x] `apps/web/src/app/globals.css`: `@keyframes zoomFadeIn` for overlay animation
+- [x] Supabase types regenerated after migration 003
 
 ### 🔲 Phase 2 — Deck Builder UI
 
@@ -150,9 +161,13 @@ MTGA-DeckBuilder/
 │   │       ├── cards/[id]/route.ts     — GET single card + legalities
 │   │       └── sync/scryfall/route.ts  — POST sync trigger + cron
 │   └── components/
-│       ├── cards/CardGrid.tsx          — card tile grid
-│       ├── cards/CardSearchFilters.tsx — search bar + format + arena toggle
-│       └── ui/NavBar.tsx               — top navigation
+│       ├── cards/CardGrid.tsx              — card tile grid
+│       ├── cards/CardSearchFilters.tsx     — MTGA-style advanced filter panel (color/CMC/rarity/type/set)
+│       ├── cards/CardPrintingsCarousel.tsx — stacked fan of all printings; slide to browse, click to zoom
+│       ├── cards/CardImageZoom.tsx         — hover-to-zoom overlay (pointer-events:none pattern)
+│       └── ui/
+│           ├── NavBar.tsx                  — top navigation
+│           └── ManaCost.tsx                — renders Scryfall SVG mana symbols
 ├── packages/
 │   ├── core/src/
 │   │   ├── types/card.ts           — Card, Deck, DeckCard, Format types
@@ -164,6 +179,7 @@ MTGA-DeckBuilder/
 │   └── db/
 │       ├── migrations/001_initial_schema.sql
 │       ├── migrations/002_search_cards_rpc.sql
+│       ├── migrations/003_advanced_search.sql  — extended search_cards RPC (color/CMC/rarity/type/set)
 │       └── src/
 │           ├── client.ts           — createBrowserClient(), createServiceClient()
 │           └── types.ts            — generated types (supabase gen types)
@@ -211,6 +227,14 @@ MTGA-DeckBuilder/
 - **Do NOT have a `pnpm-workspace.yaml` inside `apps/web`** — it makes pnpm treat it as a broken workspace root and fails Vercel CI with "packages field missing or empty"
 - `vercel env add ... preview` requires `--value "..." ""` (empty string as third arg for all preview branches) — `--yes` flag alone doesn't work in v54
 - `supabase gen types` prints "Initialising login role..." to stdout — pipe through `grep -v "^Initialising"` before writing to file
+
+### Mana Symbols / UI
+
+- **Mana symbols use Scryfall SVG CDN** — `https://svgs.scryfall.io/card-symbols/{SYMBOL}.svg` (already whitelisted in next.config.ts). Use `<img>` not `next/image` for variable-size icons.
+- **Color filter uses PostgreSQL `<@` (subset) operator** — `c.colors <@ p_colors` means "card's colors are within the selected palette." This is AND/subset logic: selecting R+G shows only mono-R, mono-G, and R/G cards. Colorless ('C') handled separately as `c.colors = '{}'`.
+- **Zoom overlay + hover interaction conflict** — when a `fixed inset-0` overlay appears, the browser fires `mouseleave` on any element beneath it. If you have state that resets on `onMouseLeave`, capture the value into a separate ref/state before the overlay opens. Pattern: `zoomedPrinting` state set at click time, not derived from hover state.
+- **`supabase db query --linked -f <file>`** is the correct way to run a migration SQL file against the remote Supabase DB via CLI (not `supabase db push`, which uses migration history tracking).
+- **`CREATE OR REPLACE FUNCTION` requires matching signature** — if a function has been previously created with fewer params, it's a different overload. Add `DROP FUNCTION IF EXISTS fn(old, signature)` before the `CREATE OR REPLACE` in the migration.
 
 ### Environment Variables
 
