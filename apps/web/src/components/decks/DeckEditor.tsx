@@ -110,12 +110,12 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     const params = new URLSearchParams({ limit: "60" });
     if (query) params.set("q", query);
     if (colors.length) params.set("colors", colors.join(","));
-    if (arenaOnly) params.set("arena_only", "true");
+    if (arenaOnly) params.set("arena", "1");
 
     fetch(`/api/cards/search?${params}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data) => {
-        setSearchResults(data.cards ?? []);
+        setSearchResults(Array.isArray(data) ? data : data.cards ?? []);
         setLoading(false);
       })
       .catch(() => {});
