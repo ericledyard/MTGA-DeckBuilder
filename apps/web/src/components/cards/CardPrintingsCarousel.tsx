@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export interface PrintingInfo {
   id: string;
@@ -30,7 +30,8 @@ interface Props {
 
 export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
-  const [zoomed, setZoomed] = useState(false);
+  // Captures the printing at click time — isolated from hover index changes
+  const [zoomedPrinting, setZoomedPrinting] = useState<PrintingInfo | null>(null);
 
   const active = printings[activeIndex];
   if (!active) return null;
@@ -55,12 +56,12 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
 
   // ── Zoom: click active card to open, click backdrop / Escape to close ──
   useEffect(() => {
-    if (!zoomed) return;
+    if (!zoomedPrinting) return;
     function onDocClick() {
-      setZoomed(false);
+      setZoomedPrinting(null);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setZoomed(false);
+      if (e.key === "Escape") setZoomedPrinting(null);
     }
     document.addEventListener("click", onDocClick);
     document.addEventListener("keydown", onKey);
@@ -68,7 +69,7 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
       document.removeEventListener("click", onDocClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [zoomed]);
+  }, [zoomedPrinting]);
 
   return (
     <>
@@ -117,7 +118,7 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
                   visibility: inStack ? "visible" : "hidden",
                   pointerEvents: isActive ? "auto" : "none",
                 }}
-                onClick={isActive ? () => setZoomed(true) : undefined}
+                onClick={isActive ? () => setZoomedPrinting(printings[activeIndex]) : undefined}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -215,7 +216,7 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
       </div>
 
       {/* ── Full-screen zoom overlay ──────────────────────────────────── */}
-      {zoomed && (
+      {zoomedPrinting && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
           style={{ animation: "zoomFadeIn 150ms ease-out" }}
@@ -223,8 +224,8 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={active.imageLarge ?? active.imageNormal}
-            alt={`${active.setName} #${active.collectorNumber}`}
+            src={zoomedPrinting.imageLarge ?? zoomedPrinting.imageNormal}
+            alt={`${zoomedPrinting.setName} #${zoomedPrinting.collectorNumber}`}
             className="h-[92vh] w-auto rounded-xl shadow-2xl shadow-black/90 select-none"
             style={{ maxWidth: "90vw" }}
             draggable={false}
