@@ -1,6 +1,6 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-04 (session 3)_
+_Last updated: 2026-06-04 (session 4)_
 _Branch: phase1/foundation_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
@@ -110,9 +110,20 @@ Full-featured MTG Arena deck management platform:
 - [x] Fonts: Anton for headers, Raleway for body text (swapped from Geist)
 
 **Known remaining items / polish:**
+
 - [ ] Google OAuth — needs Supabase provider config in dashboard then remove stub
 - [ ] Drag-and-drop visual feedback (drop zone highlight while dragging)
 - [ ] Color identity breakdown visible in deck panel (component exists, not wired in new layout)
+
+### ✅ Phase 2.5 — Search & UX Polish (COMPLETE — live in production, session 4)
+
+- [x] Migration 004: `search_cards` RPC now sorts results by CMC asc, name asc (subquery pattern to decouple DISTINCT ON from ORDER BY)
+- [x] Migration 005: GIN trgm index on `oracle_text` + `p_text_query` param added to `search_cards` RPC
+- [x] API `/api/cards/search`: accepts `?text=` param for oracle text keyword search
+- [x] Card browser: filter state now persists via URL search params (back button restores all filters)
+- [x] Card browser: two search inputs — "Search by name" + "Card text contains" (e.g. Connive, +1/+1, draw a card)
+- [x] Deck editor: oracle text search row added to compact filter bar (second row below name/color/arena)
+- [x] Hook fix: all `.claude/hooks/*.sh` now use absolute paths in settings.json (was relative, caused "No such file" errors on every Stop hook)
 
 ### 🔲 Phase 3 — Collection Management
 
