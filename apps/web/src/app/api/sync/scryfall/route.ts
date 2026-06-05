@@ -4,7 +4,11 @@ import { unlink } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createRequire } from "node:module";
 import { createClient } from "@supabase/supabase-js";
+
+// createRequire lets us load CommonJS packages from ESM without Turbopack trying to bundle them
+const _require = createRequire(import.meta.url);
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -51,9 +55,7 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   const supabase = createClient(supabaseUrl, serviceKey);
-  // Dynamic import defers resolution to runtime so Turbopack doesn't try to bundle this CommonJS subpath
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const streamArray = require("stream-json/streamers/StreamArray");
+  const streamArray = _require("stream-json/streamers/StreamArray");
 
   // Fetch bulk data index
   const indexRes = await fetch(SCRYFALL_BULK_INDEX, {
