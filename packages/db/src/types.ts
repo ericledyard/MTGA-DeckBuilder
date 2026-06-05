@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       card_legalities: {
@@ -386,6 +361,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_cards_by_oracle_ids: {
+        Args: { p_oracle_ids: string[] }
+        Returns: {
+          cmc: number
+          colors: string[]
+          image_uri_normal: string
+          mana_cost: string
+          name: string
+          oracle_id: string
+          rarity: string
+          type_line: string
+        }[]
+      }
       lookup_cards_by_names: {
         Args: { p_names: string[] }
         Returns: {
@@ -603,9 +591,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       card_rarity: ["common", "uncommon", "rare", "mythic", "special", "bonus"],
