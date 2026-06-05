@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-05 (session 7)_
-_Branch: main (all session 7 work merged — PRs #13–21)_
+_Last updated: 2026-06-05 (session 8)_
+_Branch: main (all session 8 work merged — PRs #22–24)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -126,6 +126,18 @@ Full-featured MTG Arena deck management platform:
 - [x] `lookup_cards_by_names(text[])` SQL function — uses `lower(name) = ANY(...)`, DISTINCT ON, prefers arena+image row; called via RPC (POST body) to avoid PostgREST URL issues
 - [x] Fixed: Supabase `.in()` filter corrupts names containing commas (PostgREST unquoted URL param) — replaced with RPC
 - [x] `src/components/decks/ImportDeckModal.tsx` — two-step import modal component
+
+### ✅ Phase 2.9 — Commander Support (COMPLETE — live in production, session 8)
+
+- [x] **Migration 008** — `is_commander` boolean on `deck_cards` (PK expanded to `deck_id, oracle_id, is_sideboard, is_commander`); `keywords text[]` column on `cards` (GIN indexed) for Partner/Choose a Background/Friends Forever eligibility
+- [x] **`canBeCommander()` helper** in `@mtga/core/deckValidator` — checks Legendary Creature, Legendary Planeswalker, or oracle text contains "can be your commander" (covers Grist-style edge cases)
+- [x] **`validateDeckStructure`** — enforces `missing_commander` error for brawl/commander formats; commander counts toward the 100-card total ("the commander and the other 99"); commander excluded from per-card copy-count checks
+- [x] **Parser layer** — `parseDecklist` and `parseMtgaExport` both recognize the `Commander` section and mark those cards `isCommander: true`; `deckToMtgaExport` emits Commander section first; `ParsedDecklist` gains a `commander[]` array
+- [x] **Import modal** — commander cards included in parse; `CMD` badge shown in preview list; `isCommander` threaded through to API on import
+- [x] **Deck editor** — commander displayed in a distinct amber-styled slot above mainboard/sideboard tabs; all card ops (upsert/undo/import) include `is_commander`
+- [x] **Card image preview from deck list** — click any card name in the deck list (mainboard, sideboard, or commander slot) to see a ~340px card image overlay; click anywhere to dismiss
+- [x] **Scryfall sync captures `keywords[]`** — both sync route and local script now upsert `keywords` for future Partner/Friends Forever multi-commander support
+- [x] Supabase types regenerated after migration 008 (PRs #23, #24)
 
 ### ✅ Phase 2.8 — Import Precision + Card Filter + Sync Cron Fix (COMPLETE — live in production, session 7)
 

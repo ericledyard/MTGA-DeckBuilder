@@ -13,3 +13,5 @@ Format: `[YYYY-MM-DD] <one-line summary of session>`
 [2026-06-04] Session 4: Phase 2.5 — default sort CMC/name, filter persistence via URL params, oracle text keyword search on card browser + deck editor, fixed all hook absolute paths in settings.json
 [2026-06-04] Session 5: Phase 2.6 — hover zoom in deck editor, filter panels collapsed behind Filters button, 350ms search debounce, full CMC/Rarity/Type/Expansion filters in deck editor, deploy workflow fixed (PR→merge pipeline), global CLAUDE.md created
 [2026-06-05] Session 6: Phase 2.7 — Clear list + Undo button, deck list import modal (MTGA/MTGO/Moxfield), fixed PostgREST comma-in-name bug with lookup_cards_by_names RPC (PRs #10–12)
+[2026-06-05] Session 7: Phase 2.8 — Scryfall sync cron live, set_type filter, stream-json replaced with node:readline, import precision (set+collector lookup), PRs #13–21
+[2026-06-05] Session 8: Phase 2.9 — Full commander support: migration 008 (is_commander + keywords), parser/validator/editor/import all updated, card image click-to-preview, commander counts as 1 of 100 (PRs #22–24)
