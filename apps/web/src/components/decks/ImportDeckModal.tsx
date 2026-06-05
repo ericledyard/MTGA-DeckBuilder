@@ -61,14 +61,21 @@ export function ImportDeckModal({
       return;
     }
 
-    const names = allParsed.map((c) => c.name);
+    const items = allParsed.map((c) => ({
+      name: c.name,
+      setCode: c.setCode ?? null,
+      collectorNumber: c.collectorNumber ?? null,
+    }));
 
-    let lookupData: ResolvedImportCard[] = [];
+    let lookupData: (ResolvedImportCard & {
+      set_code?: string;
+      collector_number?: string;
+    })[] = [];
     try {
       const res = await fetch("/api/cards/lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ names }),
+        body: JSON.stringify({ items }),
       });
       if (!res.ok) throw new Error("lookup failed");
       lookupData = await res.json();
@@ -78,10 +85,22 @@ export function ImportDeckModal({
       return;
     }
 
+    const setCollectorKey = (s: string, n: string) =>
+      `${s.toLowerCase()}:${n.toLowerCase()}`;
+    const bySetCollector = new Map(
+      lookupData
+        .filter((c) => c.set_code && c.collector_number)
+        .map((c) => [setCollectorKey(c.set_code!, c.collector_number!), c]),
+    );
     const byName = new Map(lookupData.map((c) => [c.name.toLowerCase(), c]));
 
     const rows: PreviewRow[] = allParsed.map((c) => {
-      const matched = byName.get(c.name.toLowerCase());
+      const matched =
+        c.setCode && c.collectorNumber
+          ? (bySetCollector.get(
+              setCollectorKey(c.setCode, c.collectorNumber),
+            ) ?? byName.get(c.name.toLowerCase()))
+          : byName.get(c.name.toLowerCase());
       if (!matched)
         return {
           name: c.name,
