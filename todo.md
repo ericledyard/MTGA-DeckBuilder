@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-05 (session 8)_
-_Branch: main (all session 8 work merged — PRs #22–24)_
+_Last updated: 2026-06-05 (session 9)_
+_Branch: main (all session 9 work merged — PRs #26–27)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -126,6 +126,16 @@ Full-featured MTG Arena deck management platform:
 - [x] `lookup_cards_by_names(text[])` SQL function — uses `lower(name) = ANY(...)`, DISTINCT ON, prefers arena+image row; called via RPC (POST body) to avoid PostgREST URL issues
 - [x] Fixed: Supabase `.in()` filter corrupts names containing commas (PostgREST unquoted URL param) — replaced with RPC
 - [x] `src/components/decks/ImportDeckModal.tsx` — two-step import modal component
+
+### ✅ Phase 2.9.1 — Commander Bug Fixes + Workflow (COMPLETE — live in production, session 9)
+
+- [x] **Migration 009** — `get_cards_by_oracle_ids(text[])` RPC using `DISTINCT ON (oracle_id)` — returns exactly one card row per oracle_id, preferring rows with images. Fixes PostgREST 1000-row default limit that cut off card data when decks contain basic lands (200+ printings each)
+- [x] **`decks/[id]/page.tsx`** — switched deck hydration from `.in("oracle_id", ...)` to `get_cards_by_oracle_ids` RPC; fixes commander (and any card) showing UUID instead of name on page reload
+- [x] **`DeckEditor.tsx` count display** — `mainCount` now includes commander quantity for `requiresCommander` formats (brawl/commander), so display shows 100/100 instead of 99/100
+- [x] **`DeckEditor.tsx` validation** — `deckForValidation` no longer filters out commanders with null card data; uses oracle_id as fallback name so validator sees the commander and doesn't fire false `missing_commander` error
+- [x] **Card image preview size** — overlay width increased 25% (340px → 425px)
+- [x] **Claude Code Review workflow** — added `id-token: write` permission; `ANTHROPIC_API_KEY` secret added to GitHub repo (PR #27)
+- [x] Supabase types regenerated after migration 009 (PR #26)
 
 ### ✅ Phase 2.9 — Commander Support (COMPLETE — live in production, session 8)
 
@@ -344,6 +354,8 @@ MTGA-DeckBuilder/
 - **Zoom overlay + hover interaction conflict** — when a `fixed inset-0` overlay appears, the browser fires `mouseleave` on any element beneath it. If you have state that resets on `onMouseLeave`, capture the value into a separate ref/state before the overlay opens. Pattern: `zoomedPrinting` state set at click time, not derived from hover state.
 - **`supabase db query --linked -f <file>`** is the correct way to run a migration SQL file against the remote Supabase DB via CLI (not `supabase db push`, which uses migration history tracking).
 - **`CREATE OR REPLACE FUNCTION` requires matching signature** — if a function has been previously created with fewer params, it's a different overload. Add `DROP FUNCTION IF EXISTS fn(old, signature)` before the `CREATE OR REPLACE` in the migration.
+- **Always use the Supabase Dashboard SQL Editor for migrations** — Supabase CLI v2.104+ stores OAuth tokens in macOS Keychain, not `~/.supabase/access-token`. The Bash tool subprocess cannot show the Keychain permission dialog, so `supabase db query --linked` always fails with auth errors from Claude Code. Go to supabase.com/dashboard → project ozdcbklmswydbbzxinij → SQL Editor instead. After running, regenerate types with `supabase gen types typescript --project-id ozdcbklmswydbbzxinij 2>/dev/null | grep -v "^Initialising" > packages/db/src/types.ts`.
+- **`cards` table has multiple rows per `oracle_id`** (one per printing). Never use `.in("oracle_id", ids)` directly from page/server code — it returns all printings and hits PostgREST's 1000-row default, silently cutting off cards. Use the `get_cards_by_oracle_ids(text[])` RPC instead (DISTINCT ON, one row per oracle_id).
 
 ### Auth / Supabase SSR
 
