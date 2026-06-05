@@ -53,6 +53,8 @@ export default async function DeckPage({ params }: Props) {
           colors: string[];
           image_uri_normal: string | null;
           rarity: string;
+          set_code: string | null;
+          collector_number: string | null;
         }) ?? null,
     })),
   };

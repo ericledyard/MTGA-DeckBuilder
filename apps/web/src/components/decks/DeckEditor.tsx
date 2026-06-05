@@ -2,15 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-  validateDeckStructure,
-  deckToMtgaExport,
-  FORMAT_RULES,
-} from "@mtga/core";
+import { validateDeckStructure, FORMAT_RULES } from "@mtga/core";
 import type { Deck, Format } from "@mtga/core";
 import { DeckCardRow, type CardRowData } from "./DeckCardRow";
 import { ManaCurveChart } from "./ManaCurveChart";
 import { ImportDeckModal, type ResolvedImportCard } from "./ImportDeckModal";
+import { ExportDeckModal } from "./ExportDeckModal";
 
 interface DeckEditorProps {
   deck: {
@@ -32,6 +29,7 @@ type SearchCard = {
   colors: string[];
   image_uri_normal: string | null;
   rarity: string;
+  set_code: string | null;
 };
 
 const TYPE_ORDER = [
@@ -146,7 +144,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const [setSearch, setSetSearch] = useState("");
   const [setsExpanded, setSetsExpanded] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [clearedSnapshot, setClearedSnapshot] = useState<CardRowData[] | null>(
     null,
@@ -346,6 +344,8 @@ export function DeckEditor({ deck }: DeckEditorProps) {
             colors: card.colors,
             image_uri_normal: card.image_uri_normal,
             rarity: card.rarity,
+            set_code: card.set_code ?? null,
+            collector_number: null,
           },
         },
       ]);
@@ -399,10 +399,8 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     }
   }
 
-  async function handleExport() {
-    await navigator.clipboard.writeText(deckToMtgaExport(deckForValidation));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  function handleExport() {
+    setExportOpen(true);
   }
 
   async function handleDelete() {
@@ -465,6 +463,8 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         colors: c.colors,
         image_uri_normal: c.image_uri_normal,
         rarity: c.rarity,
+        set_code: c.set_code ?? null,
+        collector_number: c.collector_number ?? null,
       },
     }));
 
@@ -920,7 +920,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                   onClick={handleExport}
                   className="px-2 py-1 text-[11px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
                 >
-                  {copied ? "✓" : "Export"}
+                  Export
                 </button>
                 <button
                   onClick={() => setImportOpen(true)}
@@ -1093,6 +1093,14 @@ export function DeckEditor({ deck }: DeckEditorProps) {
           currentCardCount={deckCards.length}
           onImport={handleImport}
           onClose={() => setImportOpen(false)}
+        />
+      )}
+
+      {exportOpen && (
+        <ExportDeckModal
+          deckName={deck.name}
+          deckCards={deckCards}
+          onClose={() => setExportOpen(false)}
         />
       )}
 

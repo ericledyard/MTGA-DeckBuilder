@@ -15,6 +15,8 @@ export interface ResolvedImportCard {
   colors: string[];
   image_uri_normal: string | null;
   rarity: string;
+  set_code: string | null;
+  collector_number: string | null;
 }
 
 interface PreviewRow {
@@ -83,8 +85,8 @@ export function ImportDeckModal({
     }));
 
     let lookupData: (ResolvedImportCard & {
-      set_code?: string;
-      collector_number?: string;
+      set_code?: string | null;
+      collector_number?: string | null;
     })[] = [];
     try {
       const res = await fetch("/api/cards/lookup", {
@@ -142,6 +144,8 @@ export function ImportDeckModal({
           colors: matched.colors,
           image_uri_normal: matched.image_uri_normal,
           rarity: matched.rarity,
+          set_code: matched.set_code ?? null,
+          collector_number: matched.collector_number ?? null,
         },
       };
     });
