@@ -216,6 +216,7 @@ async function syncCards(downloadUri: string) {
       flavor_text: c.flavor_text ?? null,
       digital: c.digital,
       scryfall_uri: c.scryfall_uri,
+      set_type: c.set_type,
       updated_at: updatedAt,
     });
 

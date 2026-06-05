@@ -171,6 +171,7 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
       flavor_text: (c.flavor_text as string) ?? null,
       digital: c.digital,
       scryfall_uri: c.scryfall_uri,
+      set_type: c.set_type,
       updated_at: updatedAt,
     });
 
