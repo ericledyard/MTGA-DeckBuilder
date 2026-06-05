@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-04 (session 5)_
-_Branch: main (all session 5 work merged)_
+_Last updated: 2026-06-05 (session 6)_
+_Branch: main (all session 6 work merged — PRs #10–12)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -115,6 +115,18 @@ Full-featured MTG Arena deck management platform:
 - [ ] Drag-and-drop visual feedback (drop zone highlight while dragging)
 - [ ] Color identity breakdown visible in deck panel (component exists, not wired in new layout)
 
+### ✅ Phase 2.7 — Deck Editor Actions (COMPLETE — live in production, session 6)
+
+- [x] **Clear list button** — confirm prompt → wipes all deck cards (local + DELETE API); button swaps to Undo immediately after; snapshot discarded when next card is added
+- [x] `DELETE /api/decks/{id}/cards` endpoint — removes all deck_cards rows for a deck
+- [x] **Import deck list** — Import button in deck editor header opens two-step modal: paste → Parse & Preview (green found / red not-found) → Import N cards
+- [x] Supports MTGA (Deck/Commander/Sideboard sections), MTGO (SB: prefix), Moxfield (// headers), plain text
+- [x] `src/lib/parsers/decklist.ts` — universal multi-format parser (deduplicates same name, merges quantities)
+- [x] `POST /api/cards/lookup` — bulk name→card resolver using `lookup_cards_by_names` RPC
+- [x] `lookup_cards_by_names(text[])` SQL function — uses `lower(name) = ANY(...)`, DISTINCT ON, prefers arena+image row; called via RPC (POST body) to avoid PostgREST URL issues
+- [x] Fixed: Supabase `.in()` filter corrupts names containing commas (PostgREST unquoted URL param) — replaced with RPC
+- [x] `src/components/decks/ImportDeckModal.tsx` — two-step import modal component
+
 ### ✅ Phase 2.6 — UX Polish (COMPLETE — live in production, session 5)
 
 - [x] Deck editor card browser: hover zoom — 80% panel overlay, 80ms debounce, clears on drag
@@ -210,7 +222,8 @@ MTGA-DeckBuilder/
 │   ├── decks/[id]/page.tsx             — deck editor (server, hydrates cards)
 │   ├── api/decks/route.ts              — GET list / POST create
 │   ├── api/decks/[id]/route.ts         — GET/PUT/DELETE single deck
-│   ├── api/decks/[id]/cards/route.ts   — POST add / PUT set quantity
+│   ├── api/decks/[id]/cards/route.ts   — POST add / PUT set quantity / DELETE clear all
+│   ├── api/cards/lookup/route.ts       — POST bulk name→card lookup (RPC-based)
 │   ├── src/proxy.ts                    — Supabase session refresh (Next.js 16 proxy)
 │   ├── src/lib/supabase/server.ts      — SSR Supabase client (cookies)
 │   ├── src/lib/supabase/client.ts      — browser singleton
@@ -220,6 +233,7 @@ MTGA-DeckBuilder/
 │       ├── cards/CardPrintingsCarousel.tsx — stacked fan of all printings; slide to browse, click to zoom
 │       ├── cards/CardImageZoom.tsx         — hover-to-zoom overlay (pointer-events:none pattern)
 │       ├── decks/DeckEditor.tsx            — MTGA split-pane editor (card grid left, deck list right)
+│       ├── decks/ImportDeckModal.tsx       — two-step deck import modal (paste → preview → import)
 │       ├── decks/DeckCardRow.tsx           — compact deck card row with qty controls + mana cost
 │       ├── decks/ManaCurveChart.tsx        — pure CSS bar chart (0–7+ CMC buckets)
 │       ├── decks/ColorBreakdown.tsx        — color distribution with Scryfall SVG icons
@@ -274,6 +288,8 @@ MTGA-DeckBuilder/
 
 ### Database
 
+- **Supabase JS `.in()` filter corrupts names containing commas** — PostgREST serialises `.in()` as an unquoted URL query string: `?name=in.(Leonardo, the Balance,...)`. The comma inside the value is treated as a separator, splitting it into "Leonardo" + " the Balance". Use `.rpc()` instead so values travel as JSON POST body. Pattern: `lookup_cards_by_names(text[])` function with `lower(name) = ANY(lower(unnest(p_names)))`.
+- **After adding any SQL function, regenerate types** — `supabase gen types typescript --linked 2>/dev/null | grep -v "^Initialising" > packages/db/src/types.ts && pnpm --filter @mtga/db build`. The web app won't typecheck until the new RPC appears in types.
 - RLS is ON for all tables — use `createServiceClient()` (service role) for sync jobs, `createBrowserClient()` (anon) for user-facing queries
 - After any schema change: run `supabase gen types typescript --linked 2>/dev/null | grep -v "^Initialising" > packages/db/src/types.ts` then `pnpm --filter @mtga/db build`
 - `pg_trgm` extension required for fuzzy card name search — already in migration
