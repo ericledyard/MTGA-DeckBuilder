@@ -16,7 +16,9 @@ export default async function DeckPage({ params }: Props) {
 
   const { data: deck, error } = await supabase
     .from("decks")
-    .select("*, deck_cards(oracle_id, quantity, is_sideboard, is_companion)")
+    .select(
+      "*, deck_cards(oracle_id, quantity, is_sideboard, is_companion, is_commander)",
+    )
     .eq("id", id)
     .eq("user_id", user.id)
     .single();

@@ -32,6 +32,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     oracle_id,
     quantity = 1,
     is_sideboard = false,
+    is_commander = false,
   } = await request.json();
   if (!oracle_id)
     return NextResponse.json({ error: "oracle_id required" }, { status: 400 });
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     .eq("deck_id", deckId)
     .eq("oracle_id", oracle_id)
     .eq("is_sideboard", is_sideboard)
+    .eq("is_commander", is_commander)
     .single();
 
   const newQty = (existing?.quantity ?? 0) + quantity;
@@ -56,8 +58,9 @@ export async function POST(request: NextRequest, { params }: Params) {
         quantity: newQty,
         is_sideboard,
         is_companion: false,
+        is_commander,
       },
-      { onConflict: "deck_id,oracle_id,is_sideboard" },
+      { onConflict: "deck_id,oracle_id,is_sideboard,is_commander" },
     )
     .select()
     .single();
@@ -98,7 +101,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { oracle_id, quantity, is_sideboard = false } = await request.json();
+  const {
+    oracle_id,
+    quantity,
+    is_sideboard = false,
+    is_commander = false,
+  } = await request.json();
   if (!oracle_id || quantity === undefined)
     return NextResponse.json(
       { error: "oracle_id and quantity required" },
@@ -111,7 +119,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
       .delete()
       .eq("deck_id", deckId)
       .eq("oracle_id", oracle_id)
-      .eq("is_sideboard", is_sideboard);
+      .eq("is_sideboard", is_sideboard)
+      .eq("is_commander", is_commander);
 
     await supabase
       .from("decks")
@@ -130,8 +139,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
         quantity,
         is_sideboard,
         is_companion: false,
+        is_commander,
       },
-      { onConflict: "deck_id,oracle_id,is_sideboard" },
+      { onConflict: "deck_id,oracle_id,is_sideboard,is_commander" },
     )
     .select()
     .single();

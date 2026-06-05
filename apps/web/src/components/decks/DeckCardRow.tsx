@@ -7,6 +7,7 @@ export interface CardRowData {
   quantity: number;
   is_sideboard: boolean;
   is_companion: boolean;
+  is_commander: boolean;
   card: {
     name: string;
     mana_cost: string | null;

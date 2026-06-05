@@ -2,6 +2,7 @@ export interface ParsedDeckCard {
   name: string;
   quantity: number;
   isSideboard: boolean;
+  isCommander: boolean;
   setCode: string | null;
   collectorNumber: string | null;
 }
@@ -9,6 +10,7 @@ export interface ParsedDeckCard {
 export interface ParsedDecklist {
   main: ParsedDeckCard[];
   sideboard: ParsedDeckCard[];
+  commander: ParsedDeckCard[];
 }
 
 // Matches: "4 Lightning Bolt (M21) 160"  OR  "4 Lightning Bolt"
@@ -23,6 +25,7 @@ function parseLine(line: string): ParsedDeckCard | null {
     setCode: m[3]?.toUpperCase() ?? null,
     collectorNumber: m[4] ?? null,
     isSideboard: false,
+    isCommander: false,
   };
 }
 
@@ -32,9 +35,9 @@ const MAIN_HEADERS = new Set([
   "maindeck",
   "main deck",
   "mainboard",
-  "commander",
   "companion",
 ]);
+const COMMANDER_HEADERS = new Set(["commander"]);
 const SIDE_HEADERS = new Set(["sideboard", "side", "sb"]);
 
 /**
@@ -49,7 +52,8 @@ const SIDE_HEADERS = new Set(["sideboard", "side", "sb"]);
 export function parseDecklist(text: string): ParsedDecklist {
   const main: ParsedDeckCard[] = [];
   const sideboard: ParsedDeckCard[] = [];
-  let section: "main" | "sideboard" = "main";
+  const commander: ParsedDeckCard[] = [];
+  let section: "main" | "sideboard" | "commander" = "main";
 
   for (const raw of text.split("\n")) {
     const line = raw.trim();
@@ -70,6 +74,10 @@ export function parseDecklist(text: string): ParsedDecklist {
       section = "main";
       continue;
     }
+    if (COMMANDER_HEADERS.has(lower)) {
+      section = "commander";
+      continue;
+    }
     if (SIDE_HEADERS.has(lower)) {
       section = "sideboard";
       continue;
@@ -81,9 +89,10 @@ export function parseDecklist(text: string): ParsedDecklist {
     const card = parseLine(stripped);
     if (!card) continue;
 
-    card.isSideboard = section === "sideboard";
-    if (section === "sideboard") {
-      sideboard.push(card);
+    if (section === "commander") {
+      commander.push({ ...card, isCommander: true });
+    } else if (section === "sideboard") {
+      sideboard.push({ ...card, isSideboard: true });
     } else {
       main.push(card);
     }
@@ -104,5 +113,9 @@ export function parseDecklist(text: string): ParsedDecklist {
     return Array.from(seen.values());
   }
 
-  return { main: merge(main), sideboard: merge(sideboard) };
+  return {
+    main: merge(main),
+    sideboard: merge(sideboard),
+    commander: merge(commander),
+  };
 }

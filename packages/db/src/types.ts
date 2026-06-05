@@ -96,6 +96,7 @@ export type Database = {
           image_uri_large: string | null
           image_uri_normal: string | null
           is_alchemy: boolean
+          keywords: string[]
           loyalty: string | null
           mana_cost: string | null
           name: string
@@ -125,6 +126,7 @@ export type Database = {
           image_uri_large?: string | null
           image_uri_normal?: string | null
           is_alchemy?: boolean
+          keywords?: string[]
           loyalty?: string | null
           mana_cost?: string | null
           name: string
@@ -154,6 +156,7 @@ export type Database = {
           image_uri_large?: string | null
           image_uri_normal?: string | null
           is_alchemy?: boolean
+          keywords?: string[]
           loyalty?: string | null
           mana_cost?: string | null
           name?: string
@@ -182,6 +185,7 @@ export type Database = {
       deck_cards: {
         Row: {
           deck_id: string
+          is_commander: boolean
           is_companion: boolean
           is_sideboard: boolean
           oracle_id: string
@@ -189,6 +193,7 @@ export type Database = {
         }
         Insert: {
           deck_id: string
+          is_commander?: boolean
           is_companion?: boolean
           is_sideboard?: boolean
           oracle_id: string
@@ -196,6 +201,7 @@ export type Database = {
         }
         Update: {
           deck_id?: string
+          is_commander?: boolean
           is_companion?: boolean
           is_sideboard?: boolean
           oracle_id?: string

@@ -213,7 +213,8 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   }, [filtersExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived
-  const mainboard = deckCards.filter((c) => !c.is_sideboard);
+  const commanderCards = deckCards.filter((c) => c.is_commander);
+  const mainboard = deckCards.filter((c) => !c.is_sideboard && !c.is_commander);
   const sideboard = deckCards.filter((c) => c.is_sideboard);
   const visibleCards = activeTab === "mainboard" ? mainboard : sideboard;
   const mainCount = mainboard.reduce((s, c) => s + c.quantity, 0);
@@ -237,6 +238,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         quantity: c.quantity,
         isSideboard: c.is_sideboard,
         isCompanion: c.is_companion,
+        isCommander: c.is_commander,
       })),
   };
   const validationErrors = validateDeckStructure(deckForValidation);
@@ -269,25 +271,21 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     oracleId: string,
     delta: number,
     isSideboard: boolean,
+    isCommander = false,
   ) {
-    const existing = deckCards.find(
-      (c) => c.oracle_id === oracleId && c.is_sideboard === isSideboard,
-    );
+    const match = (c: CardRowData) =>
+      c.oracle_id === oracleId &&
+      c.is_sideboard === isSideboard &&
+      c.is_commander === isCommander;
+
+    const existing = deckCards.find(match);
     const newQty = (existing?.quantity ?? 0) + delta;
 
     if (newQty <= 0) {
-      setDeckCards((prev) =>
-        prev.filter(
-          (c) => !(c.oracle_id === oracleId && c.is_sideboard === isSideboard),
-        ),
-      );
+      setDeckCards((prev) => prev.filter((c) => !match(c)));
     } else if (existing) {
       setDeckCards((prev) =>
-        prev.map((c) =>
-          c.oracle_id === oracleId && c.is_sideboard === isSideboard
-            ? { ...c, quantity: newQty }
-            : c,
-        ),
+        prev.map((c) => (match(c) ? { ...c, quantity: newQty } : c)),
       );
     }
 
@@ -298,6 +296,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         oracle_id: oracleId,
         quantity: newQty,
         is_sideboard: isSideboard,
+        is_commander: isCommander,
       }),
     }).catch(() => {});
   }
@@ -306,12 +305,17 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     if (clearedSnapshot) setClearedSnapshot(null);
     const isSideboard = isSideboardOverride ?? activeTab === "sideboard";
     const existing = deckCards.find(
-      (c) => c.oracle_id === card.oracle_id && c.is_sideboard === isSideboard,
+      (c) =>
+        c.oracle_id === card.oracle_id &&
+        c.is_sideboard === isSideboard &&
+        !c.is_commander,
     );
     if (existing) {
       setDeckCards((prev) =>
         prev.map((c) =>
-          c.oracle_id === card.oracle_id && c.is_sideboard === isSideboard
+          c.oracle_id === card.oracle_id &&
+          c.is_sideboard === isSideboard &&
+          !c.is_commander
             ? { ...c, quantity: c.quantity + 1 }
             : c,
         ),
@@ -324,6 +328,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
           quantity: 1,
           is_sideboard: isSideboard,
           is_companion: false,
+          is_commander: false,
           card: {
             name: card.name,
             mana_cost: card.mana_cost,
@@ -425,6 +430,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
           oracle_id: card.oracle_id,
           quantity: card.quantity,
           is_sideboard: card.is_sideboard,
+          is_commander: card.is_commander,
         }),
       }).catch(() => {});
     }
@@ -441,6 +447,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       quantity: c.quantity,
       is_sideboard: c.isSideboard,
       is_companion: false,
+      is_commander: c.isCommander,
       card: {
         name: c.name,
         mana_cost: c.mana_cost,
@@ -462,6 +469,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
           oracle_id: c.oracle_id,
           quantity: c.quantity,
           is_sideboard: c.isSideboard,
+          is_commander: c.isCommander,
         }),
       }).catch(() => {});
     }
@@ -974,6 +982,27 @@ export function DeckEditor({ deck }: DeckEditorProps) {
               <ManaCurveChart cards={statsCards} />
             </div>
           </div>
+
+          {/* Commander slot */}
+          {commanderCards.length > 0 && (
+            <div className="shrink-0 border-b border-amber-900/40 bg-amber-950/20">
+              <div className="flex items-center gap-2 px-3 py-1">
+                <span className="text-[10px] uppercase tracking-widest text-amber-600 font-semibold">
+                  Commander
+                </span>
+                <div className="flex-1 h-px bg-amber-900/30" />
+              </div>
+              {commanderCards.map((row) => (
+                <DeckCardRow
+                  key={`${row.oracle_id}-commander`}
+                  row={row}
+                  onIncrement={() => {}}
+                  onDecrement={(id) => upsertCard(id, -1, false, true)}
+                  isIllegal={!!row.card && illegalCards.has(row.card.name)}
+                />
+              ))}
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="shrink-0 flex border-b border-gray-800">

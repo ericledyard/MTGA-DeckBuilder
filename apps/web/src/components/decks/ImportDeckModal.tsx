@@ -8,6 +8,7 @@ export interface ResolvedImportCard {
   name: string;
   quantity: number;
   isSideboard: boolean;
+  isCommander: boolean;
   mana_cost: string | null;
   cmc: number;
   type_line: string;
@@ -20,6 +21,7 @@ interface PreviewRow {
   name: string;
   quantity: number;
   isSideboard: boolean;
+  isCommander: boolean;
   found: boolean;
   resolved?: ResolvedImportCard;
 }
@@ -51,8 +53,21 @@ export function ImportDeckModal({
 
     const parsed = parseDecklist(text);
     const allParsed = [
-      ...parsed.main.map((c) => ({ ...c, isSideboard: false })),
-      ...parsed.sideboard.map((c) => ({ ...c, isSideboard: true })),
+      ...parsed.commander.map((c) => ({
+        ...c,
+        isSideboard: false,
+        isCommander: true,
+      })),
+      ...parsed.main.map((c) => ({
+        ...c,
+        isSideboard: false,
+        isCommander: false,
+      })),
+      ...parsed.sideboard.map((c) => ({
+        ...c,
+        isSideboard: true,
+        isCommander: false,
+      })),
     ];
 
     if (allParsed.length === 0) {
@@ -106,18 +121,21 @@ export function ImportDeckModal({
           name: c.name,
           quantity: c.quantity,
           isSideboard: c.isSideboard,
+          isCommander: c.isCommander,
           found: false,
         };
       return {
         name: c.name,
         quantity: c.quantity,
         isSideboard: c.isSideboard,
+        isCommander: c.isCommander,
         found: true,
         resolved: {
           oracle_id: matched.oracle_id,
           name: matched.name,
           quantity: c.quantity,
           isSideboard: c.isSideboard,
+          isCommander: c.isCommander,
           mana_cost: matched.mana_cost,
           cmc: matched.cmc,
           type_line: matched.type_line,
@@ -247,6 +265,11 @@ export function ImportDeckModal({
                       {row.quantity}
                     </span>
                     <span className="flex-1 truncate">{row.name}</span>
+                    {row.isCommander && (
+                      <span className="shrink-0 text-[9px] text-amber-500 uppercase tracking-widest font-bold">
+                        CMD
+                      </span>
+                    )}
                     {row.isSideboard && (
                       <span className="shrink-0 text-[9px] text-gray-600 uppercase tracking-widest">
                         side

@@ -202,6 +202,7 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
       rarity: c.rarity,
       available_on_arena: (c.games as string[]).includes("arena"),
       is_alchemy: isAlchemy,
+      keywords: (c.keywords as string[]) ?? [],
       image_uri_normal: imgs.normal,
       image_uri_large: imgs.large,
       image_uri_art_crop: imgs.art_crop,
