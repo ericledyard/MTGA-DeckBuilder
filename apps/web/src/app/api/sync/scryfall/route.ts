@@ -5,7 +5,6 @@ import { pipeline } from "node:stream/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import streamArray from "stream-json/streamers/StreamArray";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -52,6 +51,9 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   const supabase = createClient(supabaseUrl, serviceKey);
+  // Dynamic import defers resolution to runtime so Turbopack doesn't try to bundle this CommonJS subpath
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const streamArray = require("stream-json/streamers/StreamArray");
 
   // Fetch bulk data index
   const indexRes = await fetch(SCRYFALL_BULK_INDEX, {
@@ -75,7 +77,6 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
   await pipeline(dlRes.body, dest);
 
   function streamCards(): AsyncIterable<Record<string, unknown>> {
-    // @ts-expect-error — stream-json types don't declare withParserAsStream as static
     const stream = streamArray.withParserAsStream();
     createReadStream(tmpFile).pipe(stream);
     return {
