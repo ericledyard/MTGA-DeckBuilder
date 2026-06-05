@@ -164,7 +164,13 @@ export function validateDeckStructure(deck: Deck): ValidationError[] {
     }
   }
 
-  const mainCount = mainCards.reduce((sum, c) => sum + c.quantity, 0);
+  const commanderCount = rules.requiresCommander
+    ? deck.cards
+        .filter((c) => c.isCommander)
+        .reduce((sum, c) => sum + c.quantity, 0)
+    : 0;
+  const mainCount =
+    mainCards.reduce((sum, c) => sum + c.quantity, 0) + commanderCount;
   const sideCount = sideCards.reduce((sum, c) => sum + c.quantity, 0);
 
   if (mainCount < rules.minDeckSize) {

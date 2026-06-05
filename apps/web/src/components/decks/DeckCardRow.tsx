@@ -23,6 +23,7 @@ interface DeckCardRowProps {
   row: CardRowData;
   onIncrement: (oracleId: string, isSideboard: boolean) => void;
   onDecrement: (oracleId: string, isSideboard: boolean) => void;
+  onCardClick?: (imageUri: string, name: string) => void;
   isIllegal?: boolean;
 }
 
@@ -37,10 +38,12 @@ export function DeckCardRow({
   row,
   onIncrement,
   onDecrement,
+  onCardClick,
   isIllegal,
 }: DeckCardRowProps) {
   const name = row.card?.name ?? row.oracle_id;
   const rarityColor = RARITY_COLOR[row.card?.rarity ?? ""] ?? "text-gray-400";
+  const hasImage = !!row.card?.image_uri_normal;
 
   return (
     <div
@@ -70,11 +73,21 @@ export function DeckCardRow({
       </div>
 
       {/* Card name */}
-      <span
-        className={`flex-1 text-sm truncate ${rarityColor} ${isIllegal ? "text-red-400" : ""}`}
-      >
-        {name}
-      </span>
+      {onCardClick && hasImage ? (
+        <button
+          onClick={() => onCardClick(row.card!.image_uri_normal!, name)}
+          className={`flex-1 text-sm truncate text-left transition-opacity hover:opacity-75 ${rarityColor} ${isIllegal ? "text-red-400" : ""}`}
+          aria-label={`View ${name}`}
+        >
+          {name}
+        </button>
+      ) : (
+        <span
+          className={`flex-1 text-sm truncate ${rarityColor} ${isIllegal ? "text-red-400" : ""}`}
+        >
+          {name}
+        </span>
+      )}
 
       {/* Mana cost */}
       {row.card?.mana_cost && (
