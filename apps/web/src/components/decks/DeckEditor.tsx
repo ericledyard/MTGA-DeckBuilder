@@ -221,7 +221,12 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const mainboard = deckCards.filter((c) => !c.is_sideboard && !c.is_commander);
   const sideboard = deckCards.filter((c) => c.is_sideboard);
   const visibleCards = activeTab === "mainboard" ? mainboard : sideboard;
-  const mainCount = mainboard.reduce((s, c) => s + c.quantity, 0);
+  const commanderCount = commanderCards.reduce((s, c) => s + c.quantity, 0);
+  const mainCount =
+    mainboard.reduce((s, c) => s + c.quantity, 0) +
+    (FORMAT_RULES[deck.format as Format]?.requiresCommander
+      ? commanderCount
+      : 0);
   const sideCount = sideboard.reduce((s, c) => s + c.quantity, 0);
 
   const deckForValidation: Deck = {
@@ -235,10 +240,10 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     createdAt: "",
     updatedAt: "",
     cards: deckCards
-      .filter((c) => c.card)
+      .filter((c) => c.card || c.is_commander)
       .map((c) => ({
         oracleId: c.oracle_id,
-        name: c.card!.name,
+        name: c.card?.name ?? c.oracle_id,
         quantity: c.quantity,
         isSideboard: c.is_sideboard,
         isCompanion: c.is_companion,
@@ -1098,7 +1103,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         >
           <div
             className="relative"
-            style={{ width: "min(340px, 80vw)", aspectRatio: "2.5/3.5" }}
+            style={{ width: "min(425px, 80vw)", aspectRatio: "2.5/3.5" }}
           >
             <img
               src={previewCard.imageUri}

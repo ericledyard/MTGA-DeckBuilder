@@ -25,18 +25,18 @@ export default async function DeckPage({ params }: Props) {
 
   if (error || !deck) notFound();
 
-  // Hydrate card details for each oracle_id
+  // Hydrate card details for each oracle_id.
+  // Uses an RPC with DISTINCT ON to return exactly one row per oracle_id —
+  // the direct .in() query returns all printings and hits PostgREST's
+  // 1000-row default limit when cards have many reprints (basic lands, etc.).
   const oracleIds = [...new Set(deck.deck_cards.map((dc) => dc.oracle_id))];
   const cardMap: Record<string, unknown> = {};
   if (oracleIds.length > 0) {
-    const { data: cards } = await supabase
-      .from("cards")
-      .select(
-        "oracle_id, name, mana_cost, cmc, type_line, colors, image_uri_normal, rarity",
-      )
-      .in("oracle_id", oracleIds);
+    const { data: cards } = await supabase.rpc("get_cards_by_oracle_ids", {
+      p_oracle_ids: oracleIds,
+    });
     for (const card of cards ?? []) {
-      if (!cardMap[card.oracle_id]) cardMap[card.oracle_id] = card;
+      cardMap[card.oracle_id] = card;
     }
   }
 
