@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["stream-json"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "cards.scryfall.io" },
