@@ -153,6 +153,10 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   );
   const [importOpen, setImportOpen] = useState(false);
   const [hoveredCard, setHoveredCard] = useState<SearchCard | null>(null);
+  const [previewCard, setPreviewCard] = useState<{
+    imageUri: string;
+    name: string;
+  } | null>(null);
   const searchRef = useRef<AbortController | null>(null);
   const isDraggingRef = useRef(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -998,6 +1002,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                   row={row}
                   onIncrement={() => {}}
                   onDecrement={(id) => upsertCard(id, -1, false, true)}
+                  onCardClick={(uri, name) =>
+                    setPreviewCard({ imageUri: uri, name })
+                  }
                   isIllegal={!!row.card && illegalCards.has(row.card.name)}
                 />
               ))}
@@ -1059,6 +1066,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                         row={row}
                         onIncrement={(id, side) => upsertCard(id, 1, side)}
                         onDecrement={(id, side) => upsertCard(id, -1, side)}
+                        onCardClick={(uri, name) =>
+                          setPreviewCard({ imageUri: uri, name })
+                        }
                         isIllegal={
                           !!row.card && illegalCards.has(row.card.name)
                         }
@@ -1079,6 +1089,24 @@ export function DeckEditor({ deck }: DeckEditorProps) {
           onImport={handleImport}
           onClose={() => setImportOpen(false)}
         />
+      )}
+
+      {previewCard && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setPreviewCard(null)}
+        >
+          <div
+            className="relative"
+            style={{ width: "min(340px, 80vw)", aspectRatio: "2.5/3.5" }}
+          >
+            <img
+              src={previewCard.imageUri}
+              alt={previewCard.name}
+              className="w-full h-full object-contain rounded-xl shadow-2xl shadow-black/80"
+            />
+          </div>
+        </div>
       )}
     </>
   );
