@@ -365,12 +365,14 @@ export type Database = {
         Args: { p_oracle_ids: string[] }
         Returns: {
           cmc: number
+          collector_number: string
           colors: string[]
           image_uri_normal: string
           mana_cost: string
           name: string
           oracle_id: string
           rarity: string
+          set_code: string
           type_line: string
         }[]
       }
