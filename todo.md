@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-05 (session 6)_
-_Branch: main (all session 6 work merged — PRs #10–12)_
+_Last updated: 2026-06-05 (session 7)_
+_Branch: main (all session 7 work merged — PRs #13–21)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -127,6 +127,18 @@ Full-featured MTG Arena deck management platform:
 - [x] Fixed: Supabase `.in()` filter corrupts names containing commas (PostgREST unquoted URL param) — replaced with RPC
 - [x] `src/components/decks/ImportDeckModal.tsx` — two-step import modal component
 
+### ✅ Phase 2.8 — Import Precision + Card Filter + Sync Cron Fix (COMPLETE — live in production, session 7)
+
+- [x] **Set+collector number lookup** — `POST /api/cards/lookup` now accepts `{ items: [{name, setCode?, collectorNumber?}] }` (structured) alongside legacy `{ names }`. Items with both setCode+collectorNumber route to `lookup_cards_by_set_collector` RPC; name-only items fall back to `lookup_cards_by_names`. Missed set+collector items fall back further to name lookup.
+- [x] `packages/db/migrations/006_lookup_by_set_collector.sql` — new RPC using `(lower(set_code), lower(collector_number)) IN (unnest)` paired lookup
+- [x] `ImportDeckModal.tsx` updated — sends structured `{ items }`, builds `bySetCollector` map for result matching with `byName` fallback
+- [x] **set_type filter across all card search** — `packages/db/migrations/007_set_type_filter.sql` adds `set_type` column to cards (denormalized from sets), index, and filters `set_type NOT IN ('token', 'memorabilia')` from all three RPCs (`search_cards`, `lookup_cards_by_names`, `lookup_cards_by_set_collector`)
+- [x] `set_type` field added to card upsert in both `scripts/sync-scryfall.ts` and sync route
+- [x] **Scryfall sync cron fixed** — `apps/web/src/app/api/sync/scryfall/route.ts` was a stub returning `{"status":"sync_triggered"}`. Rewrote to contain the full sync pipeline (bulk download → readline streaming → batch upsert). Both POST (bearer token) and GET (Vercel cron) run the actual sync.
+- [x] **stream-json replaced with node:readline** — Turbopack (Next.js 16 default bundler) statically resolves ALL import/require string arguments at build time, including through `createRequire` factories. Solution: removed `stream-json` dependency entirely; `streamJsonArray()` uses `node:readline` to stream the bulk file line-by-line with brace-depth tracking to detect complete objects.
+- [x] Lockfile updated after removing `stream-json` from `apps/web/package.json`
+- [x] Manual Scryfall sync run — 114,546 cards synced (including new sets like TMC/TMT TMNT)
+
 ### ✅ Phase 2.6 — UX Polish (COMPLETE — live in production, session 5)
 
 - [x] Deck editor card browser: hover zoom — 80% panel overlay, 80ms debounce, clears on drag
@@ -213,7 +225,8 @@ MTGA-DeckBuilder/
 │   │   └── api/
 │   │       ├── cards/search/route.ts   — GET search via search_cards RPC
 │   │       ├── cards/[id]/route.ts     — GET single card + legalities
-│   │       └── sync/scryfall/route.ts  — POST sync trigger + cron
+│   │       ├── cards/lookup/route.ts   — POST bulk lookup (set+collector or name)
+│   │       └── sync/scryfall/route.ts  — POST sync trigger + GET cron (full pipeline)
 │   ├── (auth)/login/page.tsx           — email login, Google stub
 │   ├── (auth)/register/page.tsx        — signup with confirm email flow
 │   ├── auth/callback/route.ts          — PKCE code + OTP token_hash exchange
@@ -223,7 +236,6 @@ MTGA-DeckBuilder/
 │   ├── api/decks/route.ts              — GET list / POST create
 │   ├── api/decks/[id]/route.ts         — GET/PUT/DELETE single deck
 │   ├── api/decks/[id]/cards/route.ts   — POST add / PUT set quantity / DELETE clear all
-│   ├── api/cards/lookup/route.ts       — POST bulk name→card lookup (RPC-based)
 │   ├── src/proxy.ts                    — Supabase session refresh (Next.js 16 proxy)
 │   ├── src/lib/supabase/server.ts      — SSR Supabase client (cookies)
 │   ├── src/lib/supabase/client.ts      — browser singleton
@@ -254,6 +266,8 @@ MTGA-DeckBuilder/
 │       ├── migrations/001_initial_schema.sql
 │       ├── migrations/002_search_cards_rpc.sql
 │       ├── migrations/003_advanced_search.sql  — extended search_cards RPC (color/CMC/rarity/type/set)
+│       ├── migrations/006_lookup_by_set_collector.sql — set+collector number RPC
+│       ├── migrations/007_set_type_filter.sql  — set_type column + filter on all RPCs
 │       └── src/
 │           ├── client.ts           — createBrowserClient(), createServiceClient()
 │           └── types.ts            — generated types (supabase gen types)
@@ -285,6 +299,8 @@ MTGA-DeckBuilder/
 - **Scryfall legalities include unsupported formats** (explorer, historicbrawl, oathbreaker, penny, premodern, etc.) — filter to only `SUPPORTED_FORMATS` before upserting or every batch fails silently
 - **Some Scryfall cards have null oracle_id** (tokens/art cards) — skip with `if (!c.oracle_id) continue` or whole batch fails
 - **PostgREST default row limit is 1000** — any query expecting more rows (e.g. all legal cards in a format) must use a SQL RPC with EXISTS, not a `.in()` filter
+- **Scryfall `set_type` values to exclude**: `'token'` and `'memorabilia'` — these contain tokens, art series cards, and instructional cards that are not playable. Filter from all card RPCs.
+- **MTGA export format**: `{qty} {name} ({SET_CODE}) {collector_number}` — set code + collector number uniquely identify a specific printing. Use both for precise lookup; fall back to name-only if set+collector yields no result.
 
 ### Database
 
@@ -294,6 +310,7 @@ MTGA-DeckBuilder/
 - After any schema change: run `supabase gen types typescript --linked 2>/dev/null | grep -v "^Initialising" > packages/db/src/types.ts` then `pnpm --filter @mtga/db build`
 - `pg_trgm` extension required for fuzzy card name search — already in migration
 - Card search uses `search_cards` RPC (EXISTS join) — much faster than two-query approach
+- **Paired unnest lookup**: `(lower(set_code), lower(collector_number)) IN (SELECT lower(s), lower(n) FROM unnest(p_set_codes, p_collector_numbers) AS t(s, n))` — correct PostgreSQL syntax for paired array lookups
 
 ### Next.js / Vercel
 
@@ -305,6 +322,8 @@ MTGA-DeckBuilder/
 - **Do NOT have a `pnpm-workspace.yaml` inside `apps/web`** — it makes pnpm treat it as a broken workspace root and fails Vercel CI with "packages field missing or empty"
 - `vercel env add ... preview` requires `--value "..." ""` (empty string as third arg for all preview branches) — `--yes` flag alone doesn't work in v54
 - `supabase gen types` prints "Initialising login role..." to stdout — pipe through `grep -v "^Initialising"` before writing to file
+- **Turbopack (Next.js 16 default) statically resolves ALL import/require string arguments at build time** — including through `createRequire` factories. There is NO way to sneak a CommonJS subpath import past it. If a third-party package uses CommonJS subpaths (e.g. `stream-json/streamers/StreamArray`), the only guaranteed fix is to remove the dependency entirely and use Node.js built-ins.
+- **After removing a package from `apps/web/package.json`, always run `pnpm install` and commit the updated `pnpm-lock.yaml`** — otherwise Vercel's frozen-lockfile install fails because the lockfile still references the removed package under the `apps/web` importer section.
 
 ### Mana Symbols / UI
 
@@ -359,13 +378,14 @@ pnpm --filter @mtga/web typecheck     # typecheck web app
 # Scryfall sync (streaming, safe for large files)
 SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... pnpm tsx scripts/sync-scryfall.ts
 
+# Trigger sync via API (prod)
+curl -X POST https://mtga-deckbuilder.vercel.app/api/sync/scryfall \
+  -H "Authorization: Bearer $SYNC_SECRET"
+
 # Supabase types (run after any migration)
 supabase link --project-ref ozdcbklmswydbbzxinij
 supabase gen types typescript --linked 2>/dev/null | grep -v "^Initialising" > packages/db/src/types.ts
 pnpm --filter @mtga/db build
-
-# Deploy (always production)
-cd apps/web && vercel deploy --prod
 
 # Git (always branch — cc-rig blocks direct push to main)
 git checkout -b feature/your-feature
