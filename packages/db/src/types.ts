@@ -395,6 +395,23 @@ export type Database = {
           type_line: string
         }[]
       }
+      lookup_cards_by_set_collector: {
+        Args: { p_collector_numbers: string[]; p_set_codes: string[] }
+        Returns: {
+          available_on_arena: boolean
+          cmc: number
+          collector_number: string
+          colors: string[]
+          id: string
+          image_uri_normal: string
+          mana_cost: string
+          name: string
+          oracle_id: string
+          rarity: string
+          set_code: string
+          type_line: string
+        }[]
+      }
       search_cards: {
         Args: {
           p_arena_only?: boolean
