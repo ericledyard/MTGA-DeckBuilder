@@ -54,6 +54,7 @@ interface ScryfallCard {
   loyalty?: string;
   colors?: string[];
   color_identity: string[];
+  keywords?: string[];
   set: string;
   set_name: string;
   collector_number: string;
@@ -209,6 +210,7 @@ async function syncCards(downloadUri: string) {
       rarity: c.rarity,
       available_on_arena: c.games.includes("arena"),
       is_alchemy: isAlchemy(c),
+      keywords: c.keywords ?? [],
       image_uri_normal: imgs.normal,
       image_uri_large: imgs.large,
       image_uri_art_crop: imgs.art_crop,

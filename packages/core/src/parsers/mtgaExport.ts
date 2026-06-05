@@ -14,6 +14,7 @@ export interface MtgaDeck {
   main: MtgaCard[];
   sideboard: MtgaCard[];
   companion: MtgaCard[];
+  commander: MtgaCard[];
 }
 
 const CARD_LINE = /^(\d+)\s+(.+?)(?:\s+\(([A-Z0-9]+)\)\s+(\S+))?$/;
@@ -30,8 +31,13 @@ function parseLine(line: string): MtgaCard | null {
 }
 
 export function parseMtgaExport(text: string): MtgaDeck {
-  const result: MtgaDeck = { main: [], sideboard: [], companion: [] };
-  let section: "main" | "sideboard" | "companion" = "main";
+  const result: MtgaDeck = {
+    main: [],
+    sideboard: [],
+    companion: [],
+    commander: [],
+  };
+  let section: "main" | "sideboard" | "companion" | "commander" = "main";
 
   for (const raw of text.split("\n")) {
     const line = raw.trim();
@@ -49,6 +55,10 @@ export function parseMtgaExport(text: string): MtgaDeck {
       section = "companion";
       continue;
     }
+    if (lower === "commander") {
+      section = "commander";
+      continue;
+    }
     const card = parseLine(line);
     if (card) result[section].push(card);
   }
@@ -57,10 +67,20 @@ export function parseMtgaExport(text: string): MtgaDeck {
 }
 
 export function deckToMtgaExport(deck: Deck): string {
-  const lines: string[] = ["Deck"];
+  const lines: string[] = [];
 
+  const commanderCards = deck.cards.filter((c) => c.isCommander);
+  if (commanderCards.length > 0) {
+    lines.push("Commander");
+    for (const card of commanderCards) {
+      lines.push(`1 ${card.name}`);
+    }
+    lines.push("");
+  }
+
+  lines.push("Deck");
   for (const card of deck.cards.filter(
-    (c) => !c.isSideboard && !c.isCompanion,
+    (c) => !c.isSideboard && !c.isCompanion && !c.isCommander,
   )) {
     lines.push(`${card.quantity} ${card.name}`);
   }

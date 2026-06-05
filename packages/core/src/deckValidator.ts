@@ -1,5 +1,19 @@
 import type { Deck, DeckCard, Format } from "./types/card";
 
+export function canBeCommander(card: {
+  typeLine: string;
+  oracleText: string | null;
+  keywords?: string[];
+}): boolean {
+  const t = card.typeLine.toLowerCase();
+  const isLegendary = t.includes("legendary");
+  const isCreatureOrPlaneswalker =
+    t.includes("creature") || t.includes("planeswalker");
+  const hasCommanderText =
+    card.oracleText?.toLowerCase().includes("can be your commander") ?? false;
+  return isLegendary && (isCreatureOrPlaneswalker || hasCommanderText);
+}
+
 export interface ValidationError {
   type:
     | "deck_size"
@@ -7,7 +21,8 @@ export interface ValidationError {
     | "card_count"
     | "singleton"
     | "format_illegal"
-    | "arena_unavailable";
+    | "arena_unavailable"
+    | "missing_commander";
   message: string;
   cardName?: string;
 }
@@ -23,19 +38,96 @@ interface FormatRules {
 
 export const FORMAT_RULES: Record<Format, FormatRules> = {
   // 60-card constructed formats — min 60, no max, 15 sideboard, 4 copies
-  standard:  { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
-  alchemy:   { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
-  historic:  { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
-  timeless:  { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
-  pioneer:   { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
-  modern:    { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
-  legacy:    { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  standard: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  alchemy: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  historic: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  timeless: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  pioneer: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  modern: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  legacy: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
   // Vintage: 60-card minimum, restricted list limits many cards to 1 copy (not enforced here without banlist)
-  vintage:   { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
-  pauper:    { minDeckSize: 60, maxDeckSize: null, maxSideboardSize: 15, maxCopies: 4, singleton: false, requiresCommander: false },
+  vintage: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
+  pauper: {
+    minDeckSize: 60,
+    maxDeckSize: null,
+    maxSideboardSize: 15,
+    maxCopies: 4,
+    singleton: false,
+    requiresCommander: false,
+  },
   // Singleton commander formats — exactly 100 cards, no sideboard
-  brawl:     { minDeckSize: 100, maxDeckSize: 100, maxSideboardSize: 0, maxCopies: 1, singleton: true, requiresCommander: true },
-  commander: { minDeckSize: 100, maxDeckSize: 100, maxSideboardSize: 0, maxCopies: 1, singleton: true, requiresCommander: true },
+  brawl: {
+    minDeckSize: 100,
+    maxDeckSize: 100,
+    maxSideboardSize: 0,
+    maxCopies: 1,
+    singleton: true,
+    requiresCommander: true,
+  },
+  commander: {
+    minDeckSize: 100,
+    maxDeckSize: 100,
+    maxSideboardSize: 0,
+    maxCopies: 1,
+    singleton: true,
+    requiresCommander: true,
+  },
 };
 
 // Basic lands that are exempt from copy limits
@@ -57,8 +149,20 @@ export function validateDeckStructure(deck: Deck): ValidationError[] {
   const errors: ValidationError[] = [];
   const rules = FORMAT_RULES[deck.format];
 
-  const mainCards = deck.cards.filter((c) => !c.isSideboard && !c.isCompanion);
+  const mainCards = deck.cards.filter(
+    (c) => !c.isSideboard && !c.isCompanion && !c.isCommander,
+  );
   const sideCards = deck.cards.filter((c) => c.isSideboard);
+
+  if (rules.requiresCommander) {
+    const hasCommander = deck.cards.some((c) => c.isCommander);
+    if (!hasCommander) {
+      errors.push({
+        type: "missing_commander",
+        message: `${deck.format} decks require a commander`,
+      });
+    }
+  }
 
   const mainCount = mainCards.reduce((sum, c) => sum + c.quantity, 0);
   const sideCount = sideCards.reduce((sum, c) => sum + c.quantity, 0);
@@ -82,8 +186,8 @@ export function validateDeckStructure(deck: Deck): ValidationError[] {
     });
   }
 
-  // Copy count validation
-  const allCards = deck.cards.filter((c) => !c.isCompanion);
+  // Copy count validation (commander is a separate slot — exclude from copy counts)
+  const allCards = deck.cards.filter((c) => !c.isCompanion && !c.isCommander);
   const countByName = new Map<string, number>();
   for (const card of allCards) {
     countByName.set(

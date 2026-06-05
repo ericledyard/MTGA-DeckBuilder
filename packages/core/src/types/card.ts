@@ -47,6 +47,7 @@ export interface Card {
   loyalty: string | null;
   colors: Color[];
   colorIdentity: Color[];
+  keywords: string[];
   setCode: string;
   setName: string;
   collectorNumber: string;
@@ -70,6 +71,7 @@ export interface DeckCard {
   quantity: number;
   isSideboard: boolean;
   isCompanion: boolean;
+  isCommander: boolean;
 }
 
 export interface Deck {
