@@ -2,13 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createWriteStream, createReadStream } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
+import { createInterface } from "node:readline";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createRequire } from "node:module";
 import { createClient } from "@supabase/supabase-js";
-
-// createRequire lets us load CommonJS packages from ESM without Turbopack trying to bundle them
-const _require = createRequire(import.meta.url);
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -51,11 +48,63 @@ function getImageUris(card: Record<string, unknown>) {
   };
 }
 
+// Stream JSON array objects from file using readline — no external dependencies.
+// Tracks { depth and handles escaped chars / strings to find object boundaries.
+async function* streamJsonArray(
+  filePath: string,
+): AsyncGenerator<Record<string, unknown>> {
+  const rl = createInterface({
+    input: createReadStream(filePath),
+    crlfDelay: Infinity,
+  });
+
+  let lines: string[] = [];
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    // Skip the outer array brackets
+    if (trimmed === "[" || trimmed === "]") continue;
+
+    lines.push(line);
+
+    for (const char of line) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\" && inString) {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (char === "{") depth++;
+      else if (char === "}") depth--;
+    }
+
+    if (depth === 0 && lines.length > 0) {
+      // Strip trailing comma that separates array elements
+      const json = lines.join("\n").replace(/,\s*$/, "");
+      try {
+        yield JSON.parse(json) as Record<string, unknown>;
+      } catch {
+        // skip any malformed object
+      }
+      lines = [];
+    }
+  }
+}
+
 async function runSync(): Promise<{ cards: number; legalities: number }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   const supabase = createClient(supabaseUrl, serviceKey);
-  const streamArray = _require("stream-json/streamers/StreamArray");
 
   // Fetch bulk data index
   const indexRes = await fetch(SCRYFALL_BULK_INDEX, {
@@ -78,23 +127,9 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
   // @ts-expect-error — Web ReadableStream → Node stream pipeline
   await pipeline(dlRes.body, dest);
 
-  function streamCards(): AsyncIterable<Record<string, unknown>> {
-    const stream = streamArray.withParserAsStream();
-    createReadStream(tmpFile).pipe(stream);
-    return {
-      [Symbol.asyncIterator]() {
-        return (async function* () {
-          for await (const { value } of stream) {
-            yield value as Record<string, unknown>;
-          }
-        })();
-      },
-    };
-  }
-
   // Pass 1: collect sets
   const setsMap = new Map<string, object>();
-  for await (const c of streamCards()) {
+  for await (const c of streamJsonArray(tmpFile)) {
     if (!setsMap.has(c.set as string)) {
       setsMap.set(c.set as string, {
         code: c.set,
@@ -142,7 +177,7 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
     legalityBatch = [];
   };
 
-  for await (const c of streamCards()) {
+  for await (const c of streamJsonArray(tmpFile)) {
     if (!c.oracle_id) continue;
     const imgs = getImageUris(c);
     const isAlchemy =
