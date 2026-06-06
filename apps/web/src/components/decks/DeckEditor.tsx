@@ -253,21 +253,25 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     validationErrors.filter((e) => e.cardName).map((e) => e.cardName as string),
   );
 
-  const grouped = TYPE_ORDER.reduce(
-    (acc, type) => {
-      const group = visibleCards.filter(
-        (c) => c.card && cardTypeGroup(c.card.type_line) === type,
-      );
-      if (group.length > 0)
-        acc.push({
-          type,
-          cards: group,
-          count: group.reduce((s, c) => s + c.quantity, 0),
-        });
-      return acc;
-    },
-    [] as { type: string; cards: CardRowData[]; count: number }[],
-  );
+  const grouped = Array.from({ length: 8 }, (_, i) => {
+    const label = i === 7 ? "7+" : String(i);
+    const cards = visibleCards
+      .filter((c) => {
+        if (!c.card) return false;
+        const idx = Math.min(
+          Math.max(0, Math.floor(Number(c.card.cmc) || 0)),
+          7,
+        );
+        return idx === i;
+      })
+      .sort((a, b) => (a.card?.name ?? "").localeCompare(b.card?.name ?? ""));
+    if (cards.length === 0) return null;
+    return {
+      type: label,
+      cards,
+      count: cards.reduce((s, c) => s + c.quantity, 0),
+    };
+  }).filter(Boolean) as { type: string; cards: CardRowData[]; count: number }[];
 
   const statsCards = mainboard
     .filter((c) => c.card)
