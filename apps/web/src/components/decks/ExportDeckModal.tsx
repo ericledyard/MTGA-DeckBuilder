@@ -15,13 +15,22 @@ function cardName(row: CardRowData): string {
   return row.card?.name ?? row.oracle_id;
 }
 
-// MTGA needs only the front-face name for DFCs and Adventure cards, but the full
-// combined name for split cards (Fire // Ice). Split cards store both halves' costs
-// in mana_cost separated by " // "; DFCs and Adventures carry only the front-face cost.
+// MTGA needs the full combined name for split/fuse/aftermath cards (Fire // Ice)
+// but only the front-face name for DFCs and Adventure cards.
+// Split cards have Instant or Sorcery on both halves of the type_line.
+// Adventure cards have "Adventure" on the right half. Everything else is a DFC.
 function mtgaCardName(row: CardRowData): string {
   const name = cardName(row);
-  if ((row.card?.mana_cost ?? "").includes(" // ")) return name;
-  return name.split(" // ")[0];
+  if (!name.includes(" // ")) return name;
+  const typeLine = row.card?.type_line ?? "";
+  const slashIdx = typeLine.indexOf(" // ");
+  const typeLeft = slashIdx >= 0 ? typeLine.slice(0, slashIdx) : typeLine;
+  const typeRight = slashIdx >= 0 ? typeLine.slice(slashIdx + 4) : "";
+  const isSplit =
+    !typeRight.includes("Adventure") &&
+    (typeLeft.includes("Instant") || typeLeft.includes("Sorcery")) &&
+    (typeRight.includes("Instant") || typeRight.includes("Sorcery"));
+  return isSplit ? name : name.split(" // ")[0];
 }
 
 function toPlainText(deckCards: CardRowData[]): string {
