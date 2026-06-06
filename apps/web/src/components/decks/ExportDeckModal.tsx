@@ -15,6 +15,12 @@ function cardName(row: CardRowData): string {
   return row.card?.name ?? row.oracle_id;
 }
 
+// MTGA only recognises the front-face name for double-faced cards.
+// "Hypnotic Sprite // Mesmeric Glare" → "Hypnotic Sprite"
+function mtgaCardName(row: CardRowData): string {
+  return cardName(row).split(" // ")[0];
+}
+
 function toPlainText(deckCards: CardRowData[]): string {
   const commander = deckCards.filter((c) => c.is_commander);
   const main = deckCards.filter((c) => !c.is_sideboard && !c.is_commander);
@@ -45,7 +51,7 @@ function toMtgaFormat(deckCards: CardRowData[]): string {
   const side = deckCards.filter((c) => c.is_sideboard);
 
   function cardLine(c: CardRowData, qty: number): string {
-    const name = cardName(c);
+    const name = mtgaCardName(c);
     const set = c.card?.set_code;
     const num = c.card?.collector_number;
     if (set && num) return `${qty} ${name} (${set.toUpperCase()}) ${num}`;
