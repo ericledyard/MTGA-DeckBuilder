@@ -15,10 +15,13 @@ function cardName(row: CardRowData): string {
   return row.card?.name ?? row.oracle_id;
 }
 
-// MTGA only recognises the front-face name for double-faced cards.
-// "Hypnotic Sprite // Mesmeric Glare" → "Hypnotic Sprite"
+// MTGA needs only the front-face name for DFCs and Adventure cards, but the full
+// combined name for split cards (Fire // Ice). Split cards store both halves' costs
+// in mana_cost separated by " // "; DFCs and Adventures carry only the front-face cost.
 function mtgaCardName(row: CardRowData): string {
-  return cardName(row).split(" // ")[0];
+  const name = cardName(row);
+  if ((row.card?.mana_cost ?? "").includes(" // ")) return name;
+  return name.split(" // ")[0];
 }
 
 function toPlainText(deckCards: CardRowData[]): string {
@@ -64,6 +67,9 @@ function toMtgaFormat(deckCards: CardRowData[]): string {
         num = listMatch[2];
       }
     }
+    // SPG (Special Guests) is a Scryfall-only umbrella set; MTGA tracks these cards
+    // under their parent set codes. Fall back to name-only so MTGA matches by name.
+    if (set?.toUpperCase() === "SPG") return `${qty} ${name}`;
     if (set && num) return `${qty} ${name} (${set.toUpperCase()}) ${num}`;
     return `${qty} ${name}`;
   }
