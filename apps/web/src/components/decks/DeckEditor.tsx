@@ -24,9 +24,9 @@ type SearchCard = {
   oracle_id: string;
   name: string;
   mana_cost: string | null;
-  cmc: number;
+  cmc: number | null;
   type_line: string;
-  colors: string[];
+  colors: string[] | null;
   image_uri_normal: string | null;
   rarity: string;
   set_code: string | null;
@@ -339,9 +339,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
           card: {
             name: card.name,
             mana_cost: card.mana_cost,
-            cmc: card.cmc,
+            cmc: card.cmc ?? 0,
             type_line: card.type_line,
-            colors: card.colors,
+            colors: card.colors ?? [],
             image_uri_normal: card.image_uri_normal,
             rarity: card.rarity,
             set_code: card.set_code ?? null,

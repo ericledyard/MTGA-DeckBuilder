@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-05 (session 9)_
-_Branch: main (all session 9 work merged — PRs #26–27)_
+_Last updated: 2026-06-05 (session 10)_
+_Branch: main (all session 10 work merged — PRs #28–29)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -126,6 +126,19 @@ Full-featured MTG Arena deck management platform:
 - [x] `lookup_cards_by_names(text[])` SQL function — uses `lower(name) = ANY(...)`, DISTINCT ON, prefers arena+image row; called via RPC (POST body) to avoid PostgREST URL issues
 - [x] Fixed: Supabase `.in()` filter corrupts names containing commas (PostgREST unquoted URL param) — replaced with RPC
 - [x] `src/components/decks/ImportDeckModal.tsx` — two-step import modal component
+
+### ✅ Phase 2.9.2 — Deck Export Modal (COMPLETE — live in production, session 10)
+
+- [x] **`ExportDeckModal.tsx`** — new modal component with two format tabs: MTGA Format and Plain Text
+- [x] **MTGA Format** — outputs `{qty} {name} ({SET}) {collector}` with Commander/Deck/Sideboard sections; falls back to name-only when set/collector not available
+- [x] **Plain Text** — outputs `{qty} {name}` with section headers, no set/collector
+- [x] **Clipboard copy** with visual `✓ Copied!` confirmation; textarea click-to-select-all as fallback
+- [x] **Export button** replaced silent `navigator.clipboard.writeText` (which failed without feedback) with modal open
+- [x] **Set/collector threading** — added `set_code` + `collector_number` to `CardRowData.card`, `ResolvedImportCard`, and all construction sites in `DeckEditor.tsx` so data flows import→storage→export
+- [x] **`SearchCard` type** updated to include `set_code` (already returned by search API)
+- [x] **Migration 010** (`packages/db/migrations/010_export_set_collector.sql`) — updated `lookup_cards_by_names` and `get_cards_by_oracle_ids` RPCs to return `set_code` + `collector_number`
+- [x] **Supabase types regenerated** after migration 010 (PR #29)
+- [x] User testing in progress — export → MTGA import round-trip being verified
 
 ### ✅ Phase 2.9.1 — Commander Bug Fixes + Workflow (COMPLETE — live in production, session 9)
 
@@ -356,6 +369,8 @@ MTGA-DeckBuilder/
 - **`CREATE OR REPLACE FUNCTION` requires matching signature** — if a function has been previously created with fewer params, it's a different overload. Add `DROP FUNCTION IF EXISTS fn(old, signature)` before the `CREATE OR REPLACE` in the migration.
 - **Always use the Supabase Dashboard SQL Editor for migrations** — Supabase CLI v2.104+ stores OAuth tokens in macOS Keychain, not `~/.supabase/access-token`. The Bash tool subprocess cannot show the Keychain permission dialog, so `supabase db query --linked` always fails with auth errors from Claude Code. Go to supabase.com/dashboard → project ozdcbklmswydbbzxinij → SQL Editor instead. After running, regenerate types with `supabase gen types typescript --project-id ozdcbklmswydbbzxinij 2>/dev/null | grep -v "^Initialising" > packages/db/src/types.ts`.
 - **`cards` table has multiple rows per `oracle_id`** (one per printing). Never use `.in("oracle_id", ids)` directly from page/server code — it returns all printings and hits PostgREST's 1000-row default, silently cutting off cards. Use the `get_cards_by_oracle_ids(text[])` RPC instead (DISTINCT ON, one row per oracle_id).
+- **When providing SQL for the user to paste into the Supabase Dashboard, always give ONE single code block** — never split across multiple blocks with prose in between. Users paste the whole thing including English text, which causes a PostgreSQL syntax error on the first English word. One migration = one code block, everything in sequence.
+- **`set_type` column does NOT exist on the production `cards` table** — do not reference `c.set_type` in any RPC or query. Migration 007 added the column to the local migration file but it was never applied to production. The `set_type` filter was silently absent from the live RPCs the whole time.
 
 ### Auth / Supabase SSR
 
