@@ -423,6 +423,8 @@ export type Database = {
         }
         Returns: {
           available_on_arena: boolean
+          cmc: number
+          colors: string[]
           id: string
           image_uri_art_crop: string
           image_uri_normal: string
