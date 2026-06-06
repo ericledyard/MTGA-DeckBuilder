@@ -66,19 +66,21 @@ function toMtgaFormat(deckCards: CardRowData[]): string {
     const name = mtgaCardName(c);
     let set = c.card?.set_code;
     let num = c.card?.collector_number;
-    // Collector numbers like "MH2-232" are The List (PLST) format where the
-    // prefix encodes the original set. MTGA wants "(MH2) 232" not "(PLST) MH2-232".
-    // Single-letter Alchemy prefixes like "A-85" don't match and are kept as-is.
     if (set && num) {
+      // The List (PLST): "MH2-232" → set=MH2, num=232
       const listMatch = num.match(/^([A-Z][A-Z0-9]{1,4})-(\d+)$/);
       if (listMatch) {
         set = listMatch[1];
         num = listMatch[2];
       }
+      // Alchemy: Scryfall uses "A-85" but MTGA expects just "85"
+      const alchemyMatch = num.match(/^A-(\d+)$/);
+      if (alchemyMatch) num = alchemyMatch[1];
     }
-    // SPG (Special Guests) is a Scryfall-only umbrella set; MTGA tracks these cards
-    // under their parent set codes. Fall back to name-only so MTGA matches by name.
-    if (set?.toUpperCase() === "SPG") return `${qty} ${name}`;
+    // PRM and SPG are Scryfall-only umbrella set codes MTGA doesn't recognise.
+    // Fall back to name-only so MTGA can match by card name.
+    const setUpper = set?.toUpperCase();
+    if (setUpper === "SPG" || setUpper === "PRM") return `${qty} ${name}`;
     if (set && num) return `${qty} ${name} (${set.toUpperCase()}) ${num}`;
     return `${qty} ${name}`;
   }
