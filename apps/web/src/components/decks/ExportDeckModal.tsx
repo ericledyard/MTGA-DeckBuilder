@@ -52,8 +52,18 @@ function toMtgaFormat(deckCards: CardRowData[]): string {
 
   function cardLine(c: CardRowData, qty: number): string {
     const name = mtgaCardName(c);
-    const set = c.card?.set_code;
-    const num = c.card?.collector_number;
+    let set = c.card?.set_code;
+    let num = c.card?.collector_number;
+    // Collector numbers like "MH2-232" are The List (PLST) format where the
+    // prefix encodes the original set. MTGA wants "(MH2) 232" not "(PLST) MH2-232".
+    // Single-letter Alchemy prefixes like "A-85" don't match and are kept as-is.
+    if (set && num) {
+      const listMatch = num.match(/^([A-Z][A-Z0-9]{1,4})-(\d+)$/);
+      if (listMatch) {
+        set = listMatch[1];
+        num = listMatch[2];
+      }
+    }
     if (set && num) return `${qty} ${name} (${set.toUpperCase()}) ${num}`;
     return `${qty} ${name}`;
   }
