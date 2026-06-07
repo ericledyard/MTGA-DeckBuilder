@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-05 (session 10)_
-_Branch: main (all session 10 work merged — PRs #28–29)_
+_Last updated: 2026-06-06 (session 11)_
+_Branch: main (all session 11 work merged — PRs #30–36)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -127,7 +127,7 @@ Full-featured MTG Arena deck management platform:
 - [x] Fixed: Supabase `.in()` filter corrupts names containing commas (PostgREST unquoted URL param) — replaced with RPC
 - [x] `src/components/decks/ImportDeckModal.tsx` — two-step import modal component
 
-### ✅ Phase 2.9.2 — Deck Export Modal (COMPLETE — live in production, session 10)
+### ✅ Phase 2.9.2 — Deck Export Modal + MTGA Round-Trip Fixes (COMPLETE — live in production, sessions 10–11)
 
 - [x] **`ExportDeckModal.tsx`** — new modal component with two format tabs: MTGA Format and Plain Text
 - [x] **MTGA Format** — outputs `{qty} {name} ({SET}) {collector}` with Commander/Deck/Sideboard sections; falls back to name-only when set/collector not available
@@ -138,7 +138,13 @@ Full-featured MTG Arena deck management platform:
 - [x] **`SearchCard` type** updated to include `set_code` (already returned by search API)
 - [x] **Migration 010** (`packages/db/migrations/010_export_set_collector.sql`) — updated `lookup_cards_by_names` and `get_cards_by_oracle_ids` RPCs to return `set_code` + `collector_number`
 - [x] **Supabase types regenerated** after migration 010 (PR #29)
-- [x] User testing in progress — export → MTGA import round-trip being verified
+- [x] **Migration 011** — fixed `search_cards` to return `cmc` + `colors` in outer SELECT (were in inner subquery only); mana curve now works when adding cards interactively (PR #30)
+- [x] **CMC deck list sort** — deck list now groups and sorts by CMC ascending (0→7+) instead of card type (PR #31)
+- [x] **DFC/Adventure/split card names** — `mtgaCardName()` uses `type_line` to distinguish: split/fuse/aftermath (Instant or Sorcery on both halves) keep full combined name; DFCs and Adventures use front face only (PRs #32, #34, #35)
+- [x] **The List (PLST) collector numbers** — `MH2-232` → `(MH2) 232`; regex excludes Alchemy `A-85` (PR #33)
+- [x] **Alchemy collector numbers** — `A-85` → `85`; Scryfall uses `A-` prefix, MTGA does not (PR #36)
+- [x] **PRM + SPG set codes** — Scryfall-only umbrella sets; fall back to name-only so MTGA matches by card name (PR #34, #36)
+- [x] **MTGA round-trip tested** — 100-card Alela Commander deck exported and imported successfully
 
 ### ✅ Phase 2.9.1 — Commander Bug Fixes + Workflow (COMPLETE — live in production, session 9)
 

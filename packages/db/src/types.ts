@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       card_legalities: {
@@ -376,6 +401,26 @@ export type Database = {
           type_line: string
         }[]
       }
+      get_user_collection: {
+        Args: { p_user_id: string }
+        Returns: {
+          available_on_arena: boolean
+          cmc: number
+          colors: string[]
+          image_uri_normal: string
+          imported_from: Database["public"]["Enums"]["import_source"]
+          is_alchemy: boolean
+          mana_cost: string
+          name: string
+          oracle_id: string
+          quantity_foil: number
+          quantity_regular: number
+          rarity: Database["public"]["Enums"]["card_rarity"]
+          set_code: string
+          set_name: string
+          type_line: string
+        }[]
+      }
       lookup_cards_by_names: {
         Args: { p_names: string[] }
         Returns: {
@@ -408,6 +453,10 @@ export type Database = {
           type_line: string
         }[]
       }
+      remove_collection_card: {
+        Args: { p_oracle_id: string; p_user_id: string }
+        Returns: undefined
+      }
       search_cards: {
         Args: {
           p_arena_only?: boolean
@@ -415,11 +464,13 @@ export type Database = {
           p_colors?: string[]
           p_format?: string
           p_limit?: number
+          p_owned_only?: boolean
           p_query?: string
           p_rarities?: string[]
           p_set_codes?: string[]
           p_text_query?: string
           p_types?: string[]
+          p_user_id?: string
         }
         Returns: {
           available_on_arena: boolean
@@ -440,6 +491,25 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      update_collection_card: {
+        Args: {
+          p_oracle_id: string
+          p_qty_foil: number
+          p_qty_regular: number
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      upsert_collection_cards: {
+        Args: {
+          p_oracle_ids: string[]
+          p_quantities_foil: number[]
+          p_quantities_regular: number[]
+          p_source?: Database["public"]["Enums"]["import_source"]
+          p_user_id: string
+        }
+        Returns: number
+      }
     }
     Enums: {
       card_rarity:
@@ -595,6 +665,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       card_rarity: ["common", "uncommon", "rare", "mythic", "special", "bonus"],
