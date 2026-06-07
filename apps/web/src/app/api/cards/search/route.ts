@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@mtga/db";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,7 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get("q")?.trim() ?? "";
   const format = searchParams.get("format") ?? "";
   const arenaOnly = searchParams.get("arena") === "1";
+  const ownedOnly = searchParams.get("owned_only") === "1";
   const limit = Math.min(Number(searchParams.get("limit") ?? "48"), 200);
 
   const textQuery = searchParams.get("text")?.trim() ?? "";
@@ -23,6 +25,16 @@ export async function GET(req: NextRequest) {
   const types = searchParams.get("types")?.split(",").filter(Boolean) ?? null;
   const setCodes = searchParams.get("sets")?.split(",").filter(Boolean) ?? null;
 
+  // Resolve the user only when the owned-only filter is requested
+  let userId: string | undefined;
+  if (ownedOnly) {
+    const authClient = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await authClient.auth.getUser();
+    userId = user?.id;
+  }
+
   const supabase = createServiceClient();
 
   const { data, error } = await supabase.rpc("search_cards", {
@@ -36,6 +48,8 @@ export async function GET(req: NextRequest) {
     p_rarities: rarities?.length ? rarities : undefined,
     p_types: types?.length ? types : undefined,
     p_set_codes: setCodes?.length ? setCodes : undefined,
+    p_owned_only: ownedOnly && !!userId,
+    p_user_id: userId,
   });
 
   if (error) {
