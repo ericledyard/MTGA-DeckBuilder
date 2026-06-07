@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-06 (session 11)_
-_Branch: main (all session 11 work merged — PRs #30–36)_
+_Last updated: 2026-06-07 (session 12)_
+_Branch: main (all session 12 work merged — PRs #37–38)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -201,14 +201,19 @@ Full-featured MTG Arena deck management platform:
 - [x] Deck editor: oracle text search row added to compact filter bar (second row below name/color/arena)
 - [x] Hook fix: all `.claude/hooks/*.sh` now use absolute paths in settings.json (was relative, caused "No such file" errors on every Stop hook)
 
-### 🔲 Phase 3 — Collection Management
+### ✅ Phase 3 — Collection Management (COMPLETE except stats — live in production, session 12)
 
-- [ ] untapped.gg file upload UI (drag-and-drop)
-- [ ] Collection import parser wired to `/api/collection/import`
-- [ ] Collection browser page (`/collection`)
-- [ ] "Build from collection" toggle in deck editor
-- [ ] Collection stats (set completion %, format coverage)
-- [ ] Manual card add/remove
+- [x] **Migration 012** — `upsert_collection_cards`, `get_user_collection`, `update_collection_card`, `remove_collection_card` RPCs; `search_cards` extended with `p_owned_only` + `p_user_id` (PR #37)
+- [x] **`GET /api/collection`** — returns full collection with card details via `get_user_collection` RPC
+- [x] **`POST /api/collection/import`** — bulk upsert via `upsert_collection_cards` RPC
+- [x] **`PATCH|DELETE /api/collection/[oracle_id]`** — manual qty update and removal
+- [x] **`/collection` page** — server-rendered, auth-gated, hydrates collection at page load
+- [x] **`ImportCollectionModal`** — paste text or upload `.txt` → preview found/not-found → confirm upsert
+- [x] **`CollectionClient`** — card grid with quantity badges, inline +/− controls, optimistic updates, name search
+- [x] **"Collection" toggle in deck editor** — green toggle in expanded filter panel; restricts card browser to owned cards; user resolved server-side (PR #38)
+- [x] **Supabase PAT fixed** — `SUPABASE_ACCESS_TOKEN` in `~/.zshrc`; migrations now run directly via Bash tool
+- [ ] Collection stats (set completion %, format coverage) — deferred to future session
+- [x] Manual card add/remove (inline +/− controls on /collection page)
 
 ### 🔲 Phase 4 — AI Deck Builder (Google ADK + Gemini)
 
