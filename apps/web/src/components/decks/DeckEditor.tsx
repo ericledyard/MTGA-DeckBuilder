@@ -554,7 +554,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                   rarities.length +
                   filterTypes.length +
                   setCodes.length +
-                  (!arenaOnly ? 1 : 0) +
+                  (arenaOnly ? 1 : 0) +
                   (ownedOnly ? 1 : 0);
                 return (
                   <button
