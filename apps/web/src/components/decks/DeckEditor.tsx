@@ -135,7 +135,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [debouncedTextQuery, setDebouncedTextQuery] = useState("");
   const [colors, setColors] = useState<string[]>([]);
-  const [arenaOnly, setArenaOnly] = useState(true);
+  const [arenaOnly, setArenaOnly] = useState(false);
   const [ownedOnly, setOwnedOnly] = useState(false);
   const [cmcValues, setCmcValues] = useState<number[]>([]);
   const [rarities, setRarities] = useState<string[]>([]);
