@@ -16,6 +16,12 @@ export interface ParsedDecklist {
 // Matches: "4 Lightning Bolt (M21) 160"  OR  "4 Lightning Bolt"
 const CARD_LINE = /^(\d+)x?\s+(.+?)(?:\s+\(([A-Z0-9]+)\)\s+(\S+))?$/i;
 
+// Moonveil/category header: "Commander - 1", "Creatures - 57", "Instants & Sorceries - 2"
+const MOONVEIL_HEADER = /^([A-Za-z\s&/]+?)\s*-\s*\d+$/;
+
+// Name with trailing count for basic lands: "Forest 10", "Mountain 6"
+const NAME_WITH_COUNT = /^(.+?)\s+(\d+)$/;
+
 function parseLine(line: string): ParsedDeckCard | null {
   const m = line.trim().match(CARD_LINE);
   if (!m) return null;
@@ -24,6 +30,29 @@ function parseLine(line: string): ParsedDeckCard | null {
     name: m[2].trim(),
     setCode: m[3]?.toUpperCase() ?? null,
     collectorNumber: m[4] ?? null,
+    isSideboard: false,
+    isCommander: false,
+  };
+}
+
+// Parses a name-only card line (Moonveil format). Handles "Forest 10" as qty=10.
+function parseMoonveilLine(line: string): ParsedDeckCard {
+  const withCount = line.match(NAME_WITH_COUNT);
+  if (withCount) {
+    return {
+      quantity: parseInt(withCount[2], 10),
+      name: withCount[1].trim(),
+      setCode: null,
+      collectorNumber: null,
+      isSideboard: false,
+      isCommander: false,
+    };
+  }
+  return {
+    quantity: 1,
+    name: line.trim(),
+    setCode: null,
+    collectorNumber: null,
     isSideboard: false,
     isCommander: false,
   };
@@ -48,12 +77,14 @@ const SIDE_HEADERS = new Set(["sideboard", "side", "sb"]);
  * - MTGO:     sideboard lines prefixed with "SB: "
  * - Moxfield: "// Commander" style comment headers
  * - Plain:    "4x Name" or "4 Name" with optional "Sideboard" header
+ * - Moonveil: category headers "Creatures - 57", name-only lines, "Forest 10" for basic land counts
  */
 export function parseDecklist(text: string): ParsedDecklist {
   const main: ParsedDeckCard[] = [];
   const sideboard: ParsedDeckCard[] = [];
   const commander: ParsedDeckCard[] = [];
   let section: "main" | "sideboard" | "commander" = "main";
+  let moonveilMode = false;
 
   for (const raw of text.split("\n")) {
     const line = raw.trim();
@@ -86,7 +117,18 @@ export function parseDecklist(text: string): ParsedDecklist {
     // Skip remaining pure comment lines
     if (line.startsWith("//")) continue;
 
-    const card = parseLine(stripped);
+    // Moonveil-style category header: "Commander - 1", "Creatures - 57"
+    const moonveilHeader = stripped.match(MOONVEIL_HEADER);
+    if (moonveilHeader) {
+      moonveilMode = true;
+      const category = moonveilHeader[1].trim().toLowerCase();
+      section = COMMANDER_HEADERS.has(category) ? "commander" : "main";
+      continue;
+    }
+
+    const card =
+      parseLine(stripped) ??
+      (moonveilMode ? parseMoonveilLine(stripped) : null);
     if (!card) continue;
 
     if (section === "commander") {
