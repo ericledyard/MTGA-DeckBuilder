@@ -35,22 +35,34 @@ function parseLine(line: string): ParsedDeckCard | null {
   };
 }
 
+// Some exports use plural basic land names — normalize to the actual card name.
+const PLURAL_BASICS: Record<string, string> = {
+  forests: "Forest",
+  mountains: "Mountain",
+  islands: "Island",
+  swamps: "Swamp",
+  "snow-covered forests": "Snow-Covered Forest",
+  "snow-covered mountains": "Snow-Covered Mountain",
+  "snow-covered islands": "Snow-Covered Island",
+  "snow-covered swamps": "Snow-Covered Swamp",
+};
+
 // Parses a name-only card line (Moonveil format). Handles "Forest 10" as qty=10.
 function parseMoonveilLine(line: string): ParsedDeckCard {
   const withCount = line.match(NAME_WITH_COUNT);
+  let name: string;
+  let quantity: number;
   if (withCount) {
-    return {
-      quantity: parseInt(withCount[2], 10),
-      name: withCount[1].trim(),
-      setCode: null,
-      collectorNumber: null,
-      isSideboard: false,
-      isCommander: false,
-    };
+    name = withCount[1].trim();
+    quantity = parseInt(withCount[2], 10);
+  } else {
+    name = line.trim();
+    quantity = 1;
   }
+  name = PLURAL_BASICS[name.toLowerCase()] ?? name;
   return {
-    quantity: 1,
-    name: line.trim(),
+    quantity,
+    name,
     setCode: null,
     collectorNumber: null,
     isSideboard: false,
