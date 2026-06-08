@@ -426,6 +426,7 @@ export type Database = {
         Returns: {
           available_on_arena: boolean
           cmc: number
+          collector_number: string
           colors: string[]
           id: string
           image_uri_normal: string
@@ -433,6 +434,7 @@ export type Database = {
           name: string
           oracle_id: string
           rarity: Database["public"]["Enums"]["card_rarity"]
+          set_code: string
           type_line: string
         }[]
       }
