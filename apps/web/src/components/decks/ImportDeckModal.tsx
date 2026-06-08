@@ -110,14 +110,23 @@ export function ImportDeckModal({
         .map((c) => [setCollectorKey(c.set_code!, c.collector_number!), c]),
     );
     const byName = new Map(lookupData.map((c) => [c.name.toLowerCase(), c]));
+    // DFCs are stored as "Front // Back" — also index by front-face name alone
+    const byFrontFace = new Map(
+      lookupData
+        .filter((c) => c.name.includes(" // "))
+        .map((c) => [c.name.toLowerCase().split(" // ")[0], c]),
+    );
 
     const rows: PreviewRow[] = allParsed.map((c) => {
+      const key = c.name.toLowerCase();
       const matched =
         c.setCode && c.collectorNumber
           ? (bySetCollector.get(
               setCollectorKey(c.setCode, c.collectorNumber),
-            ) ?? byName.get(c.name.toLowerCase()))
-          : byName.get(c.name.toLowerCase());
+            ) ??
+            byName.get(key) ??
+            byFrontFace.get(key))
+          : (byName.get(key) ?? byFrontFace.get(key));
       if (!matched)
         return {
           name: c.name,
