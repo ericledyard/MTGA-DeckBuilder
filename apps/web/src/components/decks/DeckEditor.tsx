@@ -195,7 +195,10 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         setSearchResults(Array.isArray(data) ? data : (data.cards ?? []));
         setLoading(false);
       })
-      .catch(() => {});
+      .catch((err) => {
+        // Ignore aborted requests — a new fetch is already in flight
+        if (err?.name !== "AbortError") setLoading(false);
+      });
   }, [
     debouncedQuery,
     debouncedTextQuery,
