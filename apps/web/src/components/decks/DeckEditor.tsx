@@ -1187,21 +1187,18 @@ export function DeckEditor({ deck }: DeckEditorProps) {
           {/* Hover zoom overlay — centered within the card browser panel */}
           {hoveredCard?.image_uri_normal && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
-              <div
-                className="relative"
+              <img
+                src={hoveredCard.image_uri_normal}
+                alt={hoveredCard.name}
+                className="rounded-xl shadow-2xl shadow-black/80"
                 style={{
-                  width: "80%",
-                  aspectRatio: "2.5/3.5",
                   maxHeight: "80%",
+                  maxWidth: "55%",
+                  width: "auto",
+                  height: "auto",
+                  filter: "drop-shadow(0 0 32px rgba(0,0,0,0.9))",
                 }}
-              >
-                <img
-                  src={hoveredCard.image_uri_normal}
-                  alt={hoveredCard.name}
-                  className="w-full h-full object-contain rounded-xl shadow-2xl shadow-black/80"
-                  style={{ filter: "drop-shadow(0 0 32px rgba(0,0,0,0.9))" }}
-                />
-              </div>
+              />
             </div>
           )}
         </div>
