@@ -16,3 +16,4 @@ Format: `[YYYY-MM-DD] <one-line summary of session>`
 [2026-06-05] Session 7: Phase 2.8 — Scryfall sync cron live, set_type filter, stream-json replaced with node:readline, import precision (set+collector lookup), PRs #13–21
 [2026-06-05] Session 8: Phase 2.9 — Full commander support: migration 008 (is_commander + keywords), parser/validator/editor/import all updated, card image click-to-preview, commander counts as 1 of 100 (PRs #22–24)
 [2026-06-07] Session 12: Phase 3 complete — Supabase PAT fixed (CLI works from Bash), migration 012, /collection page, import modal, card grid +/− controls, "Collection" toggle in deck editor (PRs #37–38)
+[2026-06-08] Session 13: Import polish — Moonveil format parser, DFC lookup fix (migration 013 + modal byFrontFace map), plural basic lands, arena filter off by default, filter badge fix, migration 014 excludes tokens/memorabilia (PRs #39–44)

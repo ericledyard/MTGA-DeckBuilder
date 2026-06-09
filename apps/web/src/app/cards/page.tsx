@@ -32,8 +32,8 @@ function parseFilters(
     textQuery: searchParams.get("text") ?? DEFAULT_FILTERS.textQuery,
     format: (searchParams.get("format") ??
       DEFAULT_FILTERS.format) as CardFilters["format"],
-    // absent = default true; "0" = explicitly off
-    arenaOnly: searchParams.get("arena") !== "0",
+    // absent = default false; "1" = explicitly on
+    arenaOnly: searchParams.get("arena") === "1",
     colors: searchParams.get("colors")?.split(",").filter(Boolean) ?? [],
     cmcValues:
       searchParams
@@ -52,7 +52,7 @@ function filtersToParams(filters: CardFilters): URLSearchParams {
   if (filters.query) params.set("q", filters.query);
   if (filters.textQuery) params.set("text", filters.textQuery);
   if (filters.format) params.set("format", filters.format);
-  if (!filters.arenaOnly) params.set("arena", "0");
+  if (filters.arenaOnly) params.set("arena", "1");
   if (filters.colors.length) params.set("colors", filters.colors.join(","));
   if (filters.cmcValues.length) params.set("cmc", filters.cmcValues.join(","));
   if (filters.rarities.length)

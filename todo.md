@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-07 (session 12)_
-_Branch: main (all session 12 work merged — PRs #37–38)_
+_Last updated: 2026-06-08 (session 13)_
+_Branch: main (all session 13 work merged — PRs #39–44)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -201,6 +201,16 @@ Full-featured MTG Arena deck management platform:
 - [x] Deck editor: oracle text search row added to compact filter bar (second row below name/color/arena)
 - [x] Hook fix: all `.claude/hooks/*.sh` now use absolute paths in settings.json (was relative, caused "No such file" errors on every Stop hook)
 
+### ✅ Phase 3.1 — Import & Search Polish (COMPLETE — live in production, session 13)
+
+- [x] **Moonveil format parser** — category headers (`Creatures - 57`), name-only lines (qty=1), plural basic lands (`Forests 9` → Forest ×9) (PR #39)
+- [x] **DFC lookup fix (migration 013)** — `lookup_cards_by_names` now matches front-face name ("Scavenger Regent" → "Scavenger Regent // Exude Toxin") (PR #40)
+- [x] **Import modal DFC matching** — `byFrontFace` map built from results so preview correctly marks DFCs as found (PR #41)
+- [x] **Search loading fix** — aborted fetches no longer leave spinner stuck; `setLoading(false)` now fires on non-abort errors (PR #42)
+- [x] **Arena filter off by default** — deck editor card browser now shows all cards on load; arena=on is opt-in (PR #43)
+- [x] **Filter badge logic fix** — badge was counting arena=off as active; now correctly counts arena=on (PR #44)
+- [x] **Migration 014** — `search_cards` excludes token sheets and memorabilia (306 sets) via `NOT IN (SELECT code FROM sets WHERE set_type IN ('token','memorabilia'))` (PR #44)
+
 ### ✅ Phase 3 — Collection Management (COMPLETE except stats — live in production, session 12)
 
 - [x] **Migration 012** — `upsert_collection_cards`, `get_user_collection`, `update_collection_card`, `remove_collection_card` RPCs; `search_cards` extended with `p_owned_only` + `p_user_id` (PR #37)
@@ -381,7 +391,11 @@ MTGA-DeckBuilder/
 - **Always use the Supabase Dashboard SQL Editor for migrations** — Supabase CLI v2.104+ stores OAuth tokens in macOS Keychain, not `~/.supabase/access-token`. The Bash tool subprocess cannot show the Keychain permission dialog, so `supabase db query --linked` always fails with auth errors from Claude Code. Go to supabase.com/dashboard → project ozdcbklmswydbbzxinij → SQL Editor instead. After running, regenerate types with `supabase gen types typescript --project-id ozdcbklmswydbbzxinij 2>/dev/null | grep -v "^Initialising" > packages/db/src/types.ts`.
 - **`cards` table has multiple rows per `oracle_id`** (one per printing). Never use `.in("oracle_id", ids)` directly from page/server code — it returns all printings and hits PostgREST's 1000-row default, silently cutting off cards. Use the `get_cards_by_oracle_ids(text[])` RPC instead (DISTINCT ON, one row per oracle_id).
 - **When providing SQL for the user to paste into the Supabase Dashboard, always give ONE single code block** — never split across multiple blocks with prose in between. Users paste the whole thing including English text, which causes a PostgreSQL syntax error on the first English word. One migration = one code block, everything in sequence.
-- **`set_type` column does NOT exist on the production `cards` table** — do not reference `c.set_type` in any RPC or query. Migration 007 added the column to the local migration file but it was never applied to production. The `set_type` filter was silently absent from the live RPCs the whole time.
+- **`set_type` column does NOT exist on the production `cards` table** — do not reference `c.set_type` in any RPC or query. Migration 007 added the column to the local migration file but it was never applied to production. The `set_type` filter was silently absent from the live RPCs the whole time. Migration 014 works around this using `NOT IN (SELECT code FROM sets WHERE set_type IN ('token','memorabilia'))`.
+- **DFC cards are stored with full combined name** (`"Scavenger Regent // Exude Toxin"`). Decklists (MTGA, Moonveil, etc.) use front-face name only. `lookup_cards_by_names` (migration 013) now matches both. The import modal also builds a `byFrontFace` map for result matching — both sides must handle DFC names.
+- **Moonveil decklist format**: category headers `"Creatures - 57"`, name-only card lines (qty=1), basic lands with trailing count `"Forests 9"`. Plural basic land names are normalised in `parseMoonveilLine`. `MOONVEIL_HEADER` regex activates the fallback parser.
+- **Aborted fetch requests**: `.catch()` fires instead of `.then()` when a fetch is aborted via AbortController. `setLoading(false)` must be called in catch for non-abort errors, otherwise spinner sticks. Check `err?.name !== "AbortError"`.
+- **`activeCount` for filters**: count a filter when it is active/non-default. `arenaOnly` defaulting to false means `(arenaOnly ? 1 : 0)` — count it only when ON. Previous code had `(!arenaOnly ? 1 : 0)` which was inverted.
 
 ### Auth / Supabase SSR
 
