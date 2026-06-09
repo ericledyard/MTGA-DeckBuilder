@@ -175,7 +175,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
 
   useEffect(() => {
     const t = setTimeout(
-      () => setDebouncedSetCodeQuery(setCodeQuery.trim().toUpperCase()),
+      () => setDebouncedSetCodeQuery(setCodeQuery.trim().toLowerCase()),
       350,
     );
     return () => clearTimeout(t);
