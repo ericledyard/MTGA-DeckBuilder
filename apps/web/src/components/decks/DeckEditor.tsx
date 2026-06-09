@@ -97,6 +97,111 @@ function cardTypeGroup(typeLine: string): string {
   return "Other";
 }
 
+// ── Deck visual view: individual card tile ─────────────────────────────────
+function DeckVisualCard({
+  rowData,
+  illegalCards,
+  onIncrement,
+  onDecrement,
+  onHover,
+  onHoverEnd,
+}: {
+  rowData: CardRowData;
+  illegalCards: Set<string>;
+  onIncrement: () => void;
+  onDecrement: () => void;
+  onHover: (card: SearchCard | null) => void;
+  onHoverEnd: () => void;
+}) {
+  const card = rowData.card;
+  if (!card) return null;
+  const isIllegal = illegalCards.has(card.name);
+  return (
+    <div
+      className={`group relative aspect-[2.5/3.5] rounded-lg overflow-hidden ring-1 ${
+        rowData.is_commander
+          ? "ring-amber-500/70 shadow-lg shadow-amber-900/30"
+          : isIllegal
+            ? "ring-red-500/60"
+            : "ring-white/5"
+      }`}
+      onMouseEnter={() =>
+        onHover({
+          id: rowData.oracle_id,
+          oracle_id: rowData.oracle_id,
+          name: card.name,
+          mana_cost: card.mana_cost,
+          cmc: card.cmc,
+          type_line: card.type_line,
+          colors: card.colors,
+          image_uri_normal: card.image_uri_normal,
+          rarity: card.rarity,
+          set_code: card.set_code,
+        })
+      }
+      onMouseLeave={onHoverEnd}
+    >
+      {card.image_uri_normal ? (
+        <img
+          src={card.image_uri_normal}
+          alt={card.name}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+          <span className="text-xs text-gray-500 text-center px-1 leading-tight">
+            {card.name}
+          </span>
+        </div>
+      )}
+
+      {/* Qty badge — always visible */}
+      <div className="absolute top-1 left-1 min-w-[18px] h-[18px] bg-amber-500 text-gray-950 text-[10px] font-bold rounded-full flex items-center justify-center px-1 pointer-events-none select-none">
+        {rowData.quantity}
+      </div>
+
+      {/* Rarity dot */}
+      <div
+        className={`absolute top-1 right-1 w-2 h-2 rounded-full ${RARITY_DOT[card.rarity] ?? "bg-gray-500"} opacity-80 pointer-events-none`}
+      />
+
+      {/* Hover overlay: +/- at top, name slides up from bottom */}
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-150 flex flex-col justify-between">
+        <div className="flex justify-between p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDecrement();
+            }}
+            aria-label={`Remove ${card.name}`}
+            className="w-6 h-6 rounded-full bg-gray-900/80 border border-gray-600 text-gray-200 text-sm font-bold flex items-center justify-center hover:bg-red-900/80 hover:border-red-500 hover:text-red-300 transition-colors leading-none"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onIncrement();
+            }}
+            aria-label={`Add ${card.name}`}
+            className="w-6 h-6 rounded-full bg-gray-900/80 border border-gray-600 text-gray-200 text-sm font-bold flex items-center justify-center hover:bg-green-900/80 hover:border-green-500 hover:text-green-300 transition-colors leading-none"
+          >
+            +
+          </button>
+        </div>
+        <div className="translate-y-full group-hover:translate-y-0 transition-transform duration-150 bg-gradient-to-t from-black/90 to-transparent p-1.5">
+          <p className="text-white text-[10px] font-semibold leading-tight truncate">
+            {card.name}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ManaSymbols({
   cost,
   size = 13,
@@ -147,6 +252,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const [setSearch, setSetSearch] = useState("");
   const [setsExpanded, setSetsExpanded] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [leftPanelMode, setLeftPanelMode] = useState<"search" | "deck">(
+    "search",
+  );
   const [exportOpen, setExportOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [clearedSnapshot, setClearedSnapshot] = useState<CardRowData[] | null>(
@@ -530,397 +638,551 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       >
         {/* ── LEFT: Card browser ───────────────────────────────────── */}
         <div className="relative flex flex-col flex-1 min-w-0 bg-gray-950 border-r border-gray-800">
-          {/* Filter bar */}
-          <div className="shrink-0 flex flex-col bg-gray-900 border-b border-gray-800">
-            {/* Row 1: name search + card count + Filters button */}
-            <div className="flex items-center gap-2 px-3 py-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by name…"
-                  className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                />
-                <svg
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-              </div>
-
-              <span className="text-xs text-gray-600 shrink-0">
-                {loading ? "…" : `${searchResults.length}`}
-              </span>
-
-              {/* Filters toggle */}
-              {(() => {
-                const activeCount =
-                  colors.length +
-                  cmcValues.length +
-                  rarities.length +
-                  filterTypes.length +
-                  setCodes.length +
-                  (arenaOnly ? 1 : 0) +
-                  (ownedOnly ? 1 : 0);
-                return (
-                  <button
-                    onClick={() => setFiltersExpanded((v) => !v)}
-                    aria-expanded={filtersExpanded}
-                    className={`shrink-0 px-2.5 py-1 rounded text-xs font-bold border transition-all ${
-                      filtersExpanded || activeCount > 0
-                        ? "bg-amber-500 border-amber-400 text-gray-900 shadow-md shadow-amber-900/40"
-                        : "bg-gray-800 border-gray-700 text-gray-300 hover:bg-amber-500/20 hover:border-amber-500/50 hover:text-amber-300"
-                    }`}
-                  >
-                    Filters
-                    {activeCount > 0 && (
-                      <span
-                        className={`ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold ${
-                          filtersExpanded
-                            ? "bg-gray-900 text-amber-400"
-                            : "bg-amber-400 text-gray-900"
-                        }`}
-                      >
-                        {activeCount}
-                      </span>
-                    )}
-                  </button>
-                );
-              })()}
-            </div>
-
-            {/* Row 2: oracle text + set code search */}
-            <div className="px-3 pb-2 grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={textQuery}
-                onChange={(e) => setTextQuery(e.target.value)}
-                placeholder="Card text… (e.g. flying, +1/+1)"
-                aria-label="Search card oracle text"
-                className="w-full px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-              />
-              <input
-                type="text"
-                value={setCodeQuery}
-                onChange={(e) => setSetCodeQuery(e.target.value)}
-                placeholder="Set code… (e.g. MH3, ZNR)"
-                aria-label="Filter by set code"
-                className="w-full px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-              />
-            </div>
-
-            {/* Expanded filter panel */}
-            {filtersExpanded && (
-              <div className="border-t border-gray-800/60 px-3 py-2 space-y-3 max-h-72 overflow-y-auto">
-                {/* Color + Arena row */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-1">
-                    {COLORS.map(({ value }) => (
-                      <button
-                        key={value}
-                        onClick={() => toggleColor(value)}
-                        title={value}
-                        className={`w-7 h-7 rounded-full border-2 transition-all ${
-                          colors.includes(value)
-                            ? "border-amber-400 scale-110 shadow-lg shadow-amber-900/50"
-                            : "border-transparent opacity-60 hover:opacity-100"
-                        }`}
-                      >
-                        <img
-                          src={`https://svgs.scryfall.io/card-symbols/${value}.svg`}
-                          alt={value}
-                          className="w-full h-full"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setArenaOnly((v) => !v)}
-                    className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-                      arenaOnly
-                        ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
-                        : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
-                    }`}
-                  >
-                    Arena
-                  </button>
-                  <button
-                    onClick={() => setOwnedOnly((v) => !v)}
-                    className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-                      ownedOnly
-                        ? "bg-green-500/20 border-green-500/50 text-green-300"
-                        : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
-                    }`}
-                  >
-                    Collection
-                  </button>
-                  <span className="ml-auto text-xs text-gray-600 shrink-0">
-                    Click to add to{" "}
-                    <span className="text-amber-400 font-medium">
-                      {activeTab}
-                    </span>
-                  </span>
-                </div>
-
-                {/* CMC */}
-                <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
-                    CMC
-                  </p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {CMC_OPTIONS.map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => setCmcValues((prev) => toggle(prev, v))}
-                        className={`w-7 h-7 rounded-full border text-xs font-bold transition-all ${
-                          cmcValues.includes(v)
-                            ? "bg-amber-500 border-amber-400 text-gray-900"
-                            : "bg-gray-800 border-gray-600 text-gray-300 hover:border-amber-500/60"
-                        }`}
-                      >
-                        {v === 7 ? "7+" : v}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Rarity */}
-                <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
-                    Rarity
-                  </p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {RARITIES.map((r) => (
-                      <button
-                        key={r.value}
-                        onClick={() =>
-                          setRarities((prev) => toggle(prev, r.value))
-                        }
-                        className={`px-2.5 py-1 rounded border text-xs font-bold transition-all ${
-                          rarities.includes(r.value)
-                            ? "border-current bg-black/30"
-                            : "border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300"
-                        }`}
-                        style={
-                          rarities.includes(r.value)
-                            ? { color: r.color, borderColor: r.color }
-                            : {}
-                        }
-                      >
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Type */}
-                <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
-                    Type
-                  </p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {FILTER_TYPES.map((t) => (
-                      <button
-                        key={t}
-                        onClick={() =>
-                          setFilterTypes((prev) => toggle(prev, t))
-                        }
-                        className={`px-2.5 py-1 rounded border text-xs font-medium transition-all ${
-                          filterTypes.includes(t)
-                            ? "bg-amber-500/20 border-amber-500/60 text-amber-300"
-                            : "bg-gray-800/60 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Expansion */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setSetsExpanded((v) => !v)}
-                    className="flex items-center justify-between w-full text-left"
-                  >
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                      Expansion
-                      {setCodes.length > 0 && (
-                        <span className="ml-1.5 text-amber-400 normal-case">
-                          ({setCodes.length})
-                        </span>
-                      )}
-                    </p>
-                    <span className="text-gray-600 text-xs">
-                      {setsExpanded ? "▲" : "▼"}
-                    </span>
-                  </button>
-                  {setsExpanded && (
-                    <div className="mt-1.5 space-y-1.5">
-                      <input
-                        type="search"
-                        placeholder="Filter sets…"
-                        value={setSearch}
-                        onChange={(e) => setSetSearch(e.target.value)}
-                        className="w-full px-2.5 py-1 rounded bg-gray-800 border border-gray-700 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-500"
-                      />
-                      <div className="max-h-36 overflow-y-auto space-y-0.5">
-                        {sets
-                          .filter((s) =>
-                            s.name
-                              .toLowerCase()
-                              .includes(setSearch.toLowerCase()),
-                          )
-                          .map((s) => {
-                            const active = setCodes.includes(s.code);
-                            return (
-                              <button
-                                key={s.code}
-                                type="button"
-                                onClick={() =>
-                                  setSetCodes((prev) => toggle(prev, s.code))
-                                }
-                                className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded text-xs text-left transition-colors ${
-                                  active
-                                    ? "bg-amber-500/20 border border-amber-500/40 text-amber-200"
-                                    : "border border-transparent text-gray-300 hover:bg-gray-800"
-                                }`}
-                              >
-                                {s.icon_svg_uri && (
-                                  <img
-                                    src={s.icon_svg_uri}
-                                    alt=""
-                                    width={14}
-                                    height={14}
-                                    className="opacity-70 shrink-0"
-                                  />
-                                )}
-                                <span className="flex-1 truncate">
-                                  {s.name}
-                                </span>
-                                <span className="text-gray-600 uppercase shrink-0">
-                                  {s.code}
-                                </span>
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Reset */}
-                {(colors.length > 0 ||
-                  cmcValues.length > 0 ||
-                  rarities.length > 0 ||
-                  filterTypes.length > 0 ||
-                  setCodes.length > 0 ||
-                  !arenaOnly ||
-                  ownedOnly) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setColors([]);
-                      setCmcValues([]);
-                      setRarities([]);
-                      setFilterTypes([]);
-                      setSetCodes([]);
-                      setArenaOnly(true);
-                      setOwnedOnly(false);
-                    }}
-                    className="text-xs text-gray-500 hover:text-amber-400 transition-colors underline underline-offset-2"
-                  >
-                    Reset filters
-                  </button>
-                )}
-              </div>
-            )}
+          {/* ── Mode toggle ──────────────────────────────────────────── */}
+          <div className="shrink-0 flex bg-gray-900/80 border-b border-gray-800 px-2 py-1.5 gap-1">
+            <button
+              type="button"
+              onClick={() => setLeftPanelMode("search")}
+              className={`flex-1 py-1.5 rounded text-xs font-bold transition-all ${
+                leftPanelMode === "search"
+                  ? "bg-amber-500 text-gray-900"
+                  : "text-gray-500 hover:text-gray-200 hover:bg-gray-800"
+              }`}
+            >
+              Search Cards
+            </button>
+            <button
+              type="button"
+              onClick={() => setLeftPanelMode("deck")}
+              className={`flex-1 py-1.5 rounded text-xs font-bold transition-all ${
+                leftPanelMode === "deck"
+                  ? "bg-amber-500 text-gray-900"
+                  : "text-gray-500 hover:text-gray-200 hover:bg-gray-800"
+              }`}
+            >
+              My Deck{mainCount > 0 ? ` (${mainCount})` : ""}
+            </button>
           </div>
 
-          {/* Card grid */}
-          <div className="flex-1 overflow-y-auto p-3">
-            {loading && searchResults.length === 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-                {Array.from({ length: 24 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="aspect-[2.5/3.5] rounded-lg bg-gray-800 animate-pulse"
+          {/* Filter bar — search mode only */}
+          {leftPanelMode === "search" && (
+            <div className="shrink-0 flex flex-col bg-gray-900 border-b border-gray-800">
+              {/* Row 1: name search + card count + Filters button */}
+              <div className="flex items-center gap-2 px-3 py-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search by name…"
+                    className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                   />
-                ))}
-              </div>
-            ) : searchResults.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-600 text-sm">
-                No cards found
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-                {searchResults.map((card) => {
-                  const qty = deckQtyMap.get(card.oracle_id) ?? 0;
+                  <svg
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+
+                <span className="text-xs text-gray-600 shrink-0">
+                  {loading ? "…" : `${searchResults.length}`}
+                </span>
+
+                {/* Filters toggle */}
+                {(() => {
+                  const activeCount =
+                    colors.length +
+                    cmcValues.length +
+                    rarities.length +
+                    filterTypes.length +
+                    setCodes.length +
+                    (arenaOnly ? 1 : 0) +
+                    (ownedOnly ? 1 : 0);
                   return (
                     <button
-                      key={card.id}
-                      onClick={() => {
-                        if (!isDraggingRef.current) addCardFromSearch(card);
-                      }}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, card)}
-                      onDragEnd={handleDragEnd}
-                      onMouseEnter={() => handleCardMouseEnter(card)}
-                      onMouseLeave={handleCardMouseLeave}
-                      className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-grab active:cursor-grabbing"
+                      onClick={() => setFiltersExpanded((v) => !v)}
+                      aria-expanded={filtersExpanded}
+                      className={`shrink-0 px-2.5 py-1 rounded text-xs font-bold border transition-all ${
+                        filtersExpanded || activeCount > 0
+                          ? "bg-amber-500 border-amber-400 text-gray-900 shadow-md shadow-amber-900/40"
+                          : "bg-gray-800 border-gray-700 text-gray-300 hover:bg-amber-500/20 hover:border-amber-500/50 hover:text-amber-300"
+                      }`}
                     >
-                      {card.image_uri_normal ? (
-                        <img
-                          src={card.image_uri_normal}
-                          alt={card.name}
-                          className="w-full h-full object-cover transition-transform duration-150 group-hover:scale-105"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                          <span className="text-xs text-gray-500 text-center px-1 leading-tight">
-                            {card.name}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-150 flex items-end">
-                        <div className="w-full translate-y-full group-hover:translate-y-0 transition-transform duration-150 bg-gradient-to-t from-black/90 to-transparent p-1.5">
-                          <p className="text-white text-[10px] font-semibold leading-tight truncate">
-                            {card.name}
-                          </p>
-                          <ManaSymbols cost={card.mana_cost} size={11} />
-                        </div>
-                      </div>
-
-                      {/* Rarity dot */}
-                      <div
-                        className={`absolute top-1 right-1 w-2 h-2 rounded-full ${RARITY_DOT[card.rarity] ?? "bg-gray-500"} opacity-80`}
-                      />
-
-                      {/* In-deck badge */}
-                      {qty > 0 && (
-                        <div className="absolute top-1 left-1 min-w-[18px] h-[18px] bg-amber-500 text-gray-950 text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                          {qty}
-                        </div>
+                      Filters
+                      {activeCount > 0 && (
+                        <span
+                          className={`ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold ${
+                            filtersExpanded
+                              ? "bg-gray-900 text-amber-400"
+                              : "bg-amber-400 text-gray-900"
+                          }`}
+                        >
+                          {activeCount}
+                        </span>
                       )}
                     </button>
                   );
-                })}
+                })()}
               </div>
-            )}
-          </div>
+
+              {/* Row 2: oracle text + set code search */}
+              <div className="px-3 pb-2 grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={textQuery}
+                  onChange={(e) => setTextQuery(e.target.value)}
+                  placeholder="Card text… (e.g. flying, +1/+1)"
+                  aria-label="Search card oracle text"
+                  className="w-full px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                />
+                <input
+                  type="text"
+                  value={setCodeQuery}
+                  onChange={(e) => setSetCodeQuery(e.target.value)}
+                  placeholder="Set code… (e.g. MH3, ZNR)"
+                  aria-label="Filter by set code"
+                  className="w-full px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              {/* Expanded filter panel */}
+              {filtersExpanded && (
+                <div className="border-t border-gray-800/60 px-3 py-2 space-y-3 max-h-72 overflow-y-auto">
+                  {/* Color + Arena row */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1">
+                      {COLORS.map(({ value }) => (
+                        <button
+                          key={value}
+                          onClick={() => toggleColor(value)}
+                          title={value}
+                          className={`w-7 h-7 rounded-full border-2 transition-all ${
+                            colors.includes(value)
+                              ? "border-amber-400 scale-110 shadow-lg shadow-amber-900/50"
+                              : "border-transparent opacity-60 hover:opacity-100"
+                          }`}
+                        >
+                          <img
+                            src={`https://svgs.scryfall.io/card-symbols/${value}.svg`}
+                            alt={value}
+                            className="w-full h-full"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setArenaOnly((v) => !v)}
+                      className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                        arenaOnly
+                          ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                          : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
+                      }`}
+                    >
+                      Arena
+                    </button>
+                    <button
+                      onClick={() => setOwnedOnly((v) => !v)}
+                      className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                        ownedOnly
+                          ? "bg-green-500/20 border-green-500/50 text-green-300"
+                          : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
+                      }`}
+                    >
+                      Collection
+                    </button>
+                    <span className="ml-auto text-xs text-gray-600 shrink-0">
+                      Click to add to{" "}
+                      <span className="text-amber-400 font-medium">
+                        {activeTab}
+                      </span>
+                    </span>
+                  </div>
+
+                  {/* CMC */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
+                      CMC
+                    </p>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {CMC_OPTIONS.map((v) => (
+                        <button
+                          key={v}
+                          onClick={() =>
+                            setCmcValues((prev) => toggle(prev, v))
+                          }
+                          className={`w-7 h-7 rounded-full border text-xs font-bold transition-all ${
+                            cmcValues.includes(v)
+                              ? "bg-amber-500 border-amber-400 text-gray-900"
+                              : "bg-gray-800 border-gray-600 text-gray-300 hover:border-amber-500/60"
+                          }`}
+                        >
+                          {v === 7 ? "7+" : v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Rarity */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
+                      Rarity
+                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {RARITIES.map((r) => (
+                        <button
+                          key={r.value}
+                          onClick={() =>
+                            setRarities((prev) => toggle(prev, r.value))
+                          }
+                          className={`px-2.5 py-1 rounded border text-xs font-bold transition-all ${
+                            rarities.includes(r.value)
+                              ? "border-current bg-black/30"
+                              : "border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300"
+                          }`}
+                          style={
+                            rarities.includes(r.value)
+                              ? { color: r.color, borderColor: r.color }
+                              : {}
+                          }
+                        >
+                          {r.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Type */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
+                      Type
+                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {FILTER_TYPES.map((t) => (
+                        <button
+                          key={t}
+                          onClick={() =>
+                            setFilterTypes((prev) => toggle(prev, t))
+                          }
+                          className={`px-2.5 py-1 rounded border text-xs font-medium transition-all ${
+                            filterTypes.includes(t)
+                              ? "bg-amber-500/20 border-amber-500/60 text-amber-300"
+                              : "bg-gray-800/60 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Expansion */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setSetsExpanded((v) => !v)}
+                      className="flex items-center justify-between w-full text-left"
+                    >
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                        Expansion
+                        {setCodes.length > 0 && (
+                          <span className="ml-1.5 text-amber-400 normal-case">
+                            ({setCodes.length})
+                          </span>
+                        )}
+                      </p>
+                      <span className="text-gray-600 text-xs">
+                        {setsExpanded ? "▲" : "▼"}
+                      </span>
+                    </button>
+                    {setsExpanded && (
+                      <div className="mt-1.5 space-y-1.5">
+                        <input
+                          type="search"
+                          placeholder="Filter sets…"
+                          value={setSearch}
+                          onChange={(e) => setSetSearch(e.target.value)}
+                          className="w-full px-2.5 py-1 rounded bg-gray-800 border border-gray-700 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-500"
+                        />
+                        <div className="max-h-36 overflow-y-auto space-y-0.5">
+                          {sets
+                            .filter((s) =>
+                              s.name
+                                .toLowerCase()
+                                .includes(setSearch.toLowerCase()),
+                            )
+                            .map((s) => {
+                              const active = setCodes.includes(s.code);
+                              return (
+                                <button
+                                  key={s.code}
+                                  type="button"
+                                  onClick={() =>
+                                    setSetCodes((prev) => toggle(prev, s.code))
+                                  }
+                                  className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded text-xs text-left transition-colors ${
+                                    active
+                                      ? "bg-amber-500/20 border border-amber-500/40 text-amber-200"
+                                      : "border border-transparent text-gray-300 hover:bg-gray-800"
+                                  }`}
+                                >
+                                  {s.icon_svg_uri && (
+                                    <img
+                                      src={s.icon_svg_uri}
+                                      alt=""
+                                      width={14}
+                                      height={14}
+                                      className="opacity-70 shrink-0"
+                                    />
+                                  )}
+                                  <span className="flex-1 truncate">
+                                    {s.name}
+                                  </span>
+                                  <span className="text-gray-600 uppercase shrink-0">
+                                    {s.code}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Reset */}
+                  {(colors.length > 0 ||
+                    cmcValues.length > 0 ||
+                    rarities.length > 0 ||
+                    filterTypes.length > 0 ||
+                    setCodes.length > 0 ||
+                    !arenaOnly ||
+                    ownedOnly) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setColors([]);
+                        setCmcValues([]);
+                        setRarities([]);
+                        setFilterTypes([]);
+                        setSetCodes([]);
+                        setArenaOnly(true);
+                        setOwnedOnly(false);
+                      }}
+                      className="text-xs text-gray-500 hover:text-amber-400 transition-colors underline underline-offset-2"
+                    >
+                      Reset filters
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Card grid / Deck view */}
+          {leftPanelMode === "deck" ? (
+            /* ── Deck visual view ──────────────────────────────────── */
+            <div className="flex-1 overflow-y-auto p-3 space-y-5">
+              {deckCards.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-600">
+                  <p className="text-sm">Your deck is empty</p>
+                  <button
+                    type="button"
+                    onClick={() => setLeftPanelMode("search")}
+                    className="text-xs text-amber-500 hover:text-amber-400 underline underline-offset-2"
+                  >
+                    Search for cards to add
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Commander */}
+                  {commanderCards.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-2">
+                        Commander
+                      </p>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                        {commanderCards.map((rowData) => (
+                          <DeckVisualCard
+                            key={rowData.oracle_id + "-cmd"}
+                            rowData={rowData}
+                            illegalCards={illegalCards}
+                            onIncrement={() =>
+                              upsertCard(rowData.oracle_id, 1, false, true)
+                            }
+                            onDecrement={() =>
+                              upsertCard(rowData.oracle_id, -1, false, true)
+                            }
+                            onHover={setHoveredCard}
+                            onHoverEnd={handleCardMouseLeave}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mainboard grouped by type */}
+                  {TYPE_ORDER.map((type) => {
+                    const cards = mainboard
+                      .filter(
+                        (c) =>
+                          c.card && cardTypeGroup(c.card.type_line) === type,
+                      )
+                      .sort(
+                        (a, b) =>
+                          a.card!.cmc - b.card!.cmc ||
+                          a.card!.name.localeCompare(b.card!.name),
+                      );
+                    if (!cards.length) return null;
+                    const typeCount = cards.reduce((s, c) => s + c.quantity, 0);
+                    return (
+                      <div key={type}>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                          {type}s{" "}
+                          <span className="text-gray-700 font-normal">
+                            ({typeCount})
+                          </span>
+                        </p>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                          {cards.map((rowData) => (
+                            <DeckVisualCard
+                              key={rowData.oracle_id + "-main"}
+                              rowData={rowData}
+                              illegalCards={illegalCards}
+                              onIncrement={() =>
+                                upsertCard(rowData.oracle_id, 1, false)
+                              }
+                              onDecrement={() =>
+                                upsertCard(rowData.oracle_id, -1, false)
+                              }
+                              onHover={setHoveredCard}
+                              onHoverEnd={handleCardMouseLeave}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Sideboard */}
+                  {sideboard.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-2">
+                        Sideboard{" "}
+                        <span className="text-blue-600 font-normal">
+                          ({sideCount})
+                        </span>
+                      </p>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                        {sideboard
+                          .filter((c) => c.card)
+                          .sort((a, b) =>
+                            a.card!.name.localeCompare(b.card!.name),
+                          )
+                          .map((rowData) => (
+                            <DeckVisualCard
+                              key={rowData.oracle_id + "-side"}
+                              rowData={rowData}
+                              illegalCards={illegalCards}
+                              onIncrement={() =>
+                                upsertCard(rowData.oracle_id, 1, true)
+                              }
+                              onDecrement={() =>
+                                upsertCard(rowData.oracle_id, -1, true)
+                              }
+                              onHover={setHoveredCard}
+                              onHoverEnd={handleCardMouseLeave}
+                            />
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            /* ── Search results grid ───────────────────────────────── */
+            <div className="flex-1 overflow-y-auto p-3">
+              {loading && searchResults.length === 0 ? (
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                  {Array.from({ length: 24 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="aspect-[2.5/3.5] rounded-lg bg-gray-800 animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+                  No cards found
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                  {searchResults.map((card) => {
+                    const qty = deckQtyMap.get(card.oracle_id) ?? 0;
+                    return (
+                      <button
+                        key={card.id}
+                        onClick={() => {
+                          if (!isDraggingRef.current) addCardFromSearch(card);
+                        }}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, card)}
+                        onDragEnd={handleDragEnd}
+                        onMouseEnter={() => handleCardMouseEnter(card)}
+                        onMouseLeave={handleCardMouseLeave}
+                        className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-grab active:cursor-grabbing"
+                      >
+                        {card.image_uri_normal ? (
+                          <img
+                            src={card.image_uri_normal}
+                            alt={card.name}
+                            className="w-full h-full object-cover transition-transform duration-150 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                            <span className="text-xs text-gray-500 text-center px-1 leading-tight">
+                              {card.name}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-150 flex items-end">
+                          <div className="w-full translate-y-full group-hover:translate-y-0 transition-transform duration-150 bg-gradient-to-t from-black/90 to-transparent p-1.5">
+                            <p className="text-white text-[10px] font-semibold leading-tight truncate">
+                              {card.name}
+                            </p>
+                            <ManaSymbols cost={card.mana_cost} size={11} />
+                          </div>
+                        </div>
+
+                        {/* Rarity dot */}
+                        <div
+                          className={`absolute top-1 right-1 w-2 h-2 rounded-full ${RARITY_DOT[card.rarity] ?? "bg-gray-500"} opacity-80`}
+                        />
+
+                        {/* In-deck badge */}
+                        {qty > 0 && (
+                          <div className="absolute top-1 left-1 min-w-[18px] h-[18px] bg-amber-500 text-gray-950 text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                            {qty}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Hover zoom overlay — centered within the card browser panel */}
           {hoveredCard?.image_uri_normal && (
