@@ -382,25 +382,41 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     validationErrors.filter((e) => e.cardName).map((e) => e.cardName as string),
   );
 
-  const grouped = Array.from({ length: 8 }, (_, i) => {
-    const label = i === 7 ? "7+" : String(i);
-    const cards = visibleCards
-      .filter((c) => {
-        if (!c.card) return false;
-        const idx = Math.min(
-          Math.max(0, Math.floor(Number(c.card.cmc) || 0)),
-          7,
-        );
-        return idx === i;
-      })
-      .sort((a, b) => (a.card?.name ?? "").localeCompare(b.card?.name ?? ""));
-    if (cards.length === 0) return null;
-    return {
-      type: label,
-      cards,
-      count: cards.reduce((s, c) => s + c.quantity, 0),
-    };
-  }).filter(Boolean) as { type: string; cards: CardRowData[]; count: number }[];
+  const grouped = [
+    // CMC buckets 0–7+, lands excluded (they go at the bottom)
+    ...Array.from({ length: 8 }, (_, i) => {
+      const label = i === 7 ? "7+" : String(i);
+      const cards = visibleCards
+        .filter((c) => {
+          if (!c.card) return false;
+          if (cardTypeGroup(c.card.type_line) === "Land") return false;
+          const idx = Math.min(
+            Math.max(0, Math.floor(Number(c.card.cmc) || 0)),
+            7,
+          );
+          return idx === i;
+        })
+        .sort((a, b) => (a.card?.name ?? "").localeCompare(b.card?.name ?? ""));
+      if (cards.length === 0) return null;
+      return {
+        type: label,
+        cards,
+        count: cards.reduce((s, c) => s + c.quantity, 0),
+      };
+    }),
+    // Lands always last
+    (() => {
+      const cards = visibleCards
+        .filter((c) => c.card && cardTypeGroup(c.card.type_line) === "Land")
+        .sort((a, b) => (a.card?.name ?? "").localeCompare(b.card?.name ?? ""));
+      if (cards.length === 0) return null;
+      return {
+        type: "Lands",
+        cards,
+        count: cards.reduce((s, c) => s + c.quantity, 0),
+      };
+    })(),
+  ].filter(Boolean) as { type: string; cards: CardRowData[]; count: number }[];
 
   const statsCards = mainboard
     .filter((c) => c.card)

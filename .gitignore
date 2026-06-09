@@ -9,3 +9,4 @@ out/
 .turbo/
 .DS_Store
 *.log
+.env*
