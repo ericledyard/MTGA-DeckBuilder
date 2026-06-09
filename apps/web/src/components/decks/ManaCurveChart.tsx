@@ -12,6 +12,7 @@ export function ManaCurveChart({ cards }: ManaCurveChartProps) {
   }));
 
   for (const card of cards) {
+    if (card.type_line.toLowerCase().includes("land")) continue;
     const idx = Math.min(Math.max(0, Math.floor(Number(card.cmc) || 0)), 7);
     const isCreature = card.type_line.toLowerCase().includes("creature");
     if (isCreature) buckets[idx].creatures += card.quantity;
@@ -36,7 +37,10 @@ export function ManaCurveChart({ cards }: ManaCurveChartProps) {
               className="flex-1 flex flex-col items-center gap-0"
               title={`${bucket.label} mana: ${total} cards`}
             >
-              <div className="w-full flex flex-col justify-end" style={{ height: "40px" }}>
+              <div
+                className="w-full flex flex-col justify-end"
+                style={{ height: "40px" }}
+              >
                 {otherH > 0 && (
                   <div
                     className="w-full bg-indigo-500 rounded-t-sm"
@@ -53,10 +57,15 @@ export function ManaCurveChart({ cards }: ManaCurveChartProps) {
                   />
                 )}
                 {total === 0 && (
-                  <div className="w-full bg-gray-800" style={{ height: "2px" }} />
+                  <div
+                    className="w-full bg-gray-800"
+                    style={{ height: "2px" }}
+                  />
                 )}
               </div>
-              <span className="text-[9px] text-gray-600 mt-0.5">{bucket.label}</span>
+              <span className="text-[9px] text-gray-600 mt-0.5">
+                {bucket.label}
+              </span>
             </div>
           );
         })}

@@ -85,6 +85,11 @@ const RARITY_DOT: Record<string, string> = {
   mythic: "bg-orange-400",
 };
 
+function xCount(manaCost: string | null | undefined): number {
+  if (!manaCost) return 0;
+  return (manaCost.match(/\{X\}/gi) ?? []).length;
+}
+
 function cardTypeGroup(typeLine: string): string {
   const t = typeLine.toLowerCase();
   if (t.includes("creature")) return "Creature";
@@ -396,7 +401,12 @@ export function DeckEditor({ deck }: DeckEditorProps) {
           );
           return idx === i;
         })
-        .sort((a, b) => (a.card?.name ?? "").localeCompare(b.card?.name ?? ""));
+        .sort((a, b) => {
+          const ax = xCount(a.card?.mana_cost);
+          const bx = xCount(b.card?.mana_cost);
+          if (ax !== bx) return ax - bx;
+          return (a.card?.name ?? "").localeCompare(b.card?.name ?? "");
+        });
       if (cards.length === 0) return null;
       return {
         type: label,
@@ -1051,11 +1061,15 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                         (c) =>
                           c.card && cardTypeGroup(c.card.type_line) === type,
                       )
-                      .sort(
-                        (a, b) =>
-                          a.card!.cmc - b.card!.cmc ||
-                          a.card!.name.localeCompare(b.card!.name),
-                      );
+                      .sort((a, b) => {
+                        const ac = Number(a.card!.cmc) || 0;
+                        const bc = Number(b.card!.cmc) || 0;
+                        if (ac !== bc) return ac - bc;
+                        const ax = xCount(a.card!.mana_cost);
+                        const bx = xCount(b.card!.mana_cost);
+                        if (ax !== bx) return ax - bx;
+                        return a.card!.name.localeCompare(b.card!.name);
+                      });
                     if (!cards.length) return null;
                     const typeCount = cards.reduce((s, c) => s + c.quantity, 0);
                     return (
