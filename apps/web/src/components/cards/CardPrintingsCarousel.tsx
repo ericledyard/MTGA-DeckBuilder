@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface PrintingInfo {
   id: string;
@@ -20,7 +20,6 @@ const RARITY_DOT: Record<string, string> = {
   mythic: "bg-orange-500",
 };
 
-// Cards visible in the fan stack behind the active card
 const STACK_DEPTH = 3;
 
 interface Props {
@@ -30,13 +29,25 @@ interface Props {
 
 export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
-  // Captures the printing at click time — isolated from hover index changes
-  const [zoomedPrinting, setZoomedPrinting] = useState<PrintingInfo | null>(null);
+  // lockedIndex: set when user explicitly picks a printing (arrow/dot/swipe)
+  // null = pure hover mode, reset to initialIndex on mouse leave
+  const [lockedIndex, setLockedIndex] = useState<number | null>(null);
+  const [zoomedPrinting, setZoomedPrinting] = useState<PrintingInfo | null>(
+    null,
+  );
+  const touchStartX = useRef<number | null>(null);
 
   const active = printings[activeIndex];
   if (!active) return null;
 
-  // ── Mouse navigation: X position across container maps to printing index ──
+  // Explicit navigation — locks index so mouse-leave doesn't reset it
+  function goTo(i: number) {
+    const clamped = Math.max(0, Math.min(i, printings.length - 1));
+    setLockedIndex(clamped);
+    setActiveIndex(clamped);
+  }
+
+  // ── Mouse hover navigation ──────────────────────────────────────────────────
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -51,10 +62,23 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
   );
 
   const handleMouseLeave = useCallback(() => {
-    setActiveIndex(initialIndex);
-  }, [initialIndex]);
+    setActiveIndex(lockedIndex ?? initialIndex);
+  }, [initialIndex, lockedIndex]);
 
-  // ── Zoom: click active card to open, click backdrop / Escape to close ──
+  // ── Touch swipe ─────────────────────────────────────────────────────────────
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 30) return;
+    goTo(activeIndex + (dx < 0 ? 1 : -1));
+  }
+
+  // ── Zoom ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!zoomedPrinting) return;
     function onDocClick() {
@@ -74,11 +98,13 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
   return (
     <>
       <div className="space-y-3">
-        {/* ── Card fan stack ────────────────────────────────────────────── */}
+        {/* ── Card fan stack ───────────────────────────────────────────── */}
         <div
           className="relative aspect-[5/7] cursor-crosshair"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
           {printings.map((p, i) => {
             const d = i - activeIndex;
@@ -86,7 +112,6 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
             const inStack = absd <= STACK_DEPTH;
             const isActive = d === 0;
 
-            // Fan: cards offset and rotated away from center, stacking behind
             const tx = isActive
               ? 0
               : Math.sign(d) * Math.min(absd, STACK_DEPTH) * 6;
@@ -118,7 +143,11 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
                   visibility: inStack ? "visible" : "hidden",
                   pointerEvents: isActive ? "auto" : "none",
                 }}
-                onClick={isActive ? () => setZoomedPrinting(printings[activeIndex]) : undefined}
+                onClick={
+                  isActive
+                    ? () => setZoomedPrinting(printings[activeIndex])
+                    : undefined
+                }
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -127,7 +156,6 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
                   className="w-full h-full object-cover select-none"
                   draggable={false}
                 />
-                {/* Zoom hint on active card */}
                 {isActive && (
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200 bg-black/20">
                     <span className="text-white/80 text-xs bg-black/50 px-2 py-1 rounded-md pointer-events-none">
@@ -143,9 +171,59 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
           <div className="absolute top-2 right-2 z-50 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-0.5 rounded-full pointer-events-none select-none">
             {activeIndex + 1}&thinsp;/&thinsp;{printings.length}
           </div>
+
+          {/* ── Prev / Next arrow buttons ─────────────────────────────── */}
+          {printings.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="Previous printing"
+                disabled={activeIndex === 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goTo(activeIndex - 1);
+                }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-black/55 text-white border border-white/15 shadow-lg backdrop-blur-sm transition-all duration-150 hover:bg-black/75 hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-5 h-5"
+                >
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                aria-label="Next printing"
+                disabled={activeIndex === printings.length - 1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goTo(activeIndex + 1);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-black/55 text-white border border-white/15 shadow-lg backdrop-blur-sm transition-all duration-150 hover:bg-black/75 hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-5 h-5"
+                >
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
 
-        {/* ── Active printing info ──────────────────────────────────────── */}
+        {/* ── Active printing info ─────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2 min-w-0 text-sm">
             {active.setIconUri && (
@@ -175,27 +253,50 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
           </div>
         </div>
 
-        {/* ── Navigation indicator ──────────────────────────────────────── */}
+        {/* ── Navigation dots (≤ 16 printings) ────────────────────────── */}
         {printings.length > 1 && printings.length <= 16 && (
-          <div className="flex items-center justify-center gap-1 flex-wrap">
+          <div className="flex items-center justify-center gap-2 flex-wrap py-1">
             {printings.map((_, i) => (
               <button
                 key={i}
                 type="button"
-                onClick={() => setActiveIndex(i)}
-                aria-label={`Printing ${i + 1}`}
+                onClick={() => goTo(i)}
+                aria-label={`Go to printing ${i + 1}`}
                 className={`rounded-full transition-all duration-150 ${
                   i === activeIndex
-                    ? "w-4 h-1.5 bg-amber-400"
-                    : "w-1.5 h-1.5 bg-gray-700 hover:bg-gray-500"
+                    ? "w-6 h-3 bg-amber-400"
+                    : "w-3 h-3 bg-gray-600 hover:bg-gray-400 active:bg-amber-300"
                 }`}
               />
             ))}
           </div>
         )}
+
+        {/* ── Progress bar (> 16 printings) ───────────────────────────── */}
         {printings.length > 16 && (
-          <div className="flex items-center gap-2 px-1">
-            <div className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden">
+          <div className="flex items-center gap-3 px-1">
+            <button
+              type="button"
+              aria-label="Previous printing"
+              disabled={activeIndex === 0}
+              onClick={() => goTo(activeIndex - 1)}
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="w-4 h-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 18l-6-6 6-6"
+                />
+              </svg>
+            </button>
+            <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-amber-500 rounded-full transition-all duration-150"
                 style={{
@@ -203,14 +304,36 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
                 }}
               />
             </div>
-            <span className="text-xs text-gray-600 tabular-nums flex-shrink-0">
+            <button
+              type="button"
+              aria-label="Next printing"
+              disabled={activeIndex === printings.length - 1}
+              onClick={() => goTo(activeIndex + 1)}
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="w-4 h-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 18l6-6-6-6"
+                />
+              </svg>
+            </button>
+            <span className="text-xs text-gray-600 tabular-nums shrink-0">
               {activeIndex + 1}/{printings.length}
             </span>
           </div>
         )}
+
         {printings.length > 1 && (
           <p className="text-xs text-gray-600 text-center">
-            Slide cursor left/right to browse printings · click to zoom
+            Swipe or use arrows to browse · click card to zoom
           </p>
         )}
       </div>
