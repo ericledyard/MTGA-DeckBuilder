@@ -110,12 +110,18 @@ export function CardSearchFilters({ filters, onChange }: Props) {
   // Local text state so the input stays snappy; debounce before updating URL
   const [localQuery, setLocalQuery] = useState(filters.query);
   const [localTextQuery, setLocalTextQuery] = useState(filters.textQuery);
+  const [localSetCode, setLocalSetCode] = useState(filters.setCodes[0] ?? "");
   const queryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setCodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync when URL params change externally (e.g. back navigation)
+  // Sync when URL params change externally (e.g. back navigation or reset)
   useEffect(() => setLocalQuery(filters.query), [filters.query]);
   useEffect(() => setLocalTextQuery(filters.textQuery), [filters.textQuery]);
+  useEffect(
+    () => setLocalSetCode(filters.setCodes[0] ?? ""),
+    [filters.setCodes],
+  );
 
   useEffect(() => {
     fetch("/api/cards/sets")
@@ -134,6 +140,16 @@ export function CardSearchFilters({ filters, onChange }: Props) {
     setLocalTextQuery(val);
     if (textTimer.current) clearTimeout(textTimer.current);
     textTimer.current = setTimeout(() => onChange({ textQuery: val }), 350);
+  }
+
+  function handleSetCodeChange(val: string) {
+    setLocalSetCode(val);
+    if (setCodeTimer.current) clearTimeout(setCodeTimer.current);
+    setCodeTimer.current = setTimeout(
+      () =>
+        onChange({ setCodes: val.trim() ? [val.trim().toUpperCase()] : [] }),
+      350,
+    );
   }
 
   const activeCount =
@@ -165,14 +181,24 @@ export function CardSearchFilters({ filters, onChange }: Props) {
             aria-label="Search cards by name"
             className="w-full px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition-colors"
           />
-          <input
-            type="search"
-            placeholder="Card text contains… (e.g. Connive, +1/+1, draw a card)"
-            value={localTextQuery}
-            onChange={(e) => handleTextQueryChange(e.target.value)}
-            aria-label="Search card oracle text"
-            className="w-full px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition-colors"
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="search"
+              placeholder="Card text contains… (e.g. Connive, flying)"
+              value={localTextQuery}
+              onChange={(e) => handleTextQueryChange(e.target.value)}
+              aria-label="Search card oracle text"
+              className="w-full px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition-colors"
+            />
+            <input
+              type="search"
+              placeholder="Set code… (e.g. MH3, ZNR)"
+              value={localSetCode}
+              onChange={(e) => handleSetCodeChange(e.target.value)}
+              aria-label="Filter by set code"
+              className="w-full px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition-colors"
+            />
+          </div>
         </div>
 
         {/* Filters toggle button */}
