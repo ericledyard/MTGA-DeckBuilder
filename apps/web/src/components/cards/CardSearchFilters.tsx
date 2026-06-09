@@ -147,7 +147,7 @@ export function CardSearchFilters({ filters, onChange }: Props) {
     if (setCodeTimer.current) clearTimeout(setCodeTimer.current);
     setCodeTimer.current = setTimeout(
       () =>
-        onChange({ setCodes: val.trim() ? [val.trim().toUpperCase()] : [] }),
+        onChange({ setCodes: val.trim() ? [val.trim().toLowerCase()] : [] }),
       350,
     );
   }
