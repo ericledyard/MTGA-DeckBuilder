@@ -26,7 +26,7 @@ export const DEFAULT_FILTERS: CardFilters = {
   types: [],
   setCodes: [],
   format: "",
-  arenaOnly: true,
+  arenaOnly: false,
 };
 
 interface SetOption {
@@ -143,7 +143,7 @@ export function CardSearchFilters({ filters, onChange }: Props) {
     filters.types.length +
     filters.setCodes.length +
     (filters.format !== "" ? 1 : 0) +
-    (!filters.arenaOnly ? 1 : 0);
+    (filters.arenaOnly ? 1 : 0);
 
   const hasActiveFilters =
     activeCount > 0 || filters.textQuery !== "" || filters.query !== "";
@@ -434,7 +434,7 @@ export function CardSearchFilters({ filters, onChange }: Props) {
                   types: [],
                   setCodes: [],
                   format: "",
-                  arenaOnly: true,
+                  arenaOnly: false,
                 });
                 setLocalQuery("");
                 setLocalTextQuery("");
