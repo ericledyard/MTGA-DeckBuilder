@@ -132,8 +132,10 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [textQuery, setTextQuery] = useState("");
+  const [setCodeQuery, setSetCodeQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [debouncedTextQuery, setDebouncedTextQuery] = useState("");
+  const [debouncedSetCodeQuery, setDebouncedSetCodeQuery] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [arenaOnly, setArenaOnly] = useState(false);
   const [ownedOnly, setOwnedOnly] = useState(false);
@@ -171,6 +173,14 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     return () => clearTimeout(t);
   }, [textQuery]);
 
+  useEffect(() => {
+    const t = setTimeout(
+      () => setDebouncedSetCodeQuery(setCodeQuery.trim().toUpperCase()),
+      350,
+    );
+    return () => clearTimeout(t);
+  }, [setCodeQuery]);
+
   // Fetch fires only on debounced values + instant filter toggles
   useEffect(() => {
     if (searchRef.current) searchRef.current.abort();
@@ -187,7 +197,11 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     if (cmcValues.length) params.set("cmc", cmcValues.join(","));
     if (rarities.length) params.set("rarities", rarities.join(","));
     if (filterTypes.length) params.set("types", filterTypes.join(","));
-    if (setCodes.length) params.set("sets", setCodes.join(","));
+    const allSetCodes = [
+      ...setCodes,
+      ...(debouncedSetCodeQuery ? [debouncedSetCodeQuery] : []),
+    ];
+    if (allSetCodes.length) params.set("sets", allSetCodes.join(","));
 
     fetch(`/api/cards/search?${params}`, { signal: ctrl.signal })
       .then((r) => r.json())
@@ -209,6 +223,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     rarities,
     filterTypes,
     setCodes,
+    debouncedSetCodeQuery,
   ]);
 
   // Fetch sets lazily the first time the filter panel opens
@@ -583,14 +598,22 @@ export function DeckEditor({ deck }: DeckEditorProps) {
               })()}
             </div>
 
-            {/* Row 2: oracle text search */}
-            <div className="px-3 pb-2">
+            {/* Row 2: oracle text + set code search */}
+            <div className="px-3 pb-2 grid grid-cols-2 gap-2">
               <input
                 type="text"
                 value={textQuery}
                 onChange={(e) => setTextQuery(e.target.value)}
-                placeholder="Card text contains… (e.g. Connive, +1/+1, flying)"
+                placeholder="Card text… (e.g. flying, +1/+1)"
                 aria-label="Search card oracle text"
+                className="w-full px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+              <input
+                type="text"
+                value={setCodeQuery}
+                onChange={(e) => setSetCodeQuery(e.target.value)}
+                placeholder="Set code… (e.g. MH3, ZNR)"
+                aria-label="Filter by set code"
                 className="w-full px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
             </div>
