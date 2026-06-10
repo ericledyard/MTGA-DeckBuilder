@@ -1,7 +1,7 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-08 (session 13)_
-_Branch: main (all session 13 work merged — PRs #39–44)_
+_Last updated: 2026-06-10 (session 15)_
+_Branch: main (all session 15 work merged — PR #52)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -211,6 +211,11 @@ Full-featured MTG Arena deck management platform:
 - [x] **Filter badge logic fix** — badge was counting arena=off as active; now correctly counts arena=on (PR #44)
 - [x] **Migration 014** — `search_cards` excludes token sheets and memorabilia (306 sets) via `NOT IN (SELECT code FROM sets WHERE set_type IN ('token','memorabilia'))` (PR #44)
 
+### ✅ Session 15 — Mana Curve & Sort Polish (COMPLETE — live in production, session 15)
+
+- [x] **Mana curve land exclusion** — `ManaCurveChart` now skips land cards; basics were landing in 0-bucket as "Other" and dominating the scale, hiding spells like Sol Ring (PR #52)
+- [x] **X-cost card sort** — added `xCount()` helper counting `{X}` symbols in `mana_cost`; deck list and visual view now sort as `(cmc, xCount, name)` so `{1}` < `{X}{1}` < `{X}{X}{1}` (PR #52)
+
 ### ✅ Phase 3 — Collection Management (COMPLETE except stats — live in production, session 12)
 
 - [x] **Migration 012** — `upsert_collection_cards`, `get_user_collection`, `update_collection_card`, `remove_collection_card` RPCs; `search_cards` extended with `p_owned_only` + `p_user_id` (PR #37)
@@ -396,6 +401,8 @@ MTGA-DeckBuilder/
 - **Moonveil decklist format**: category headers `"Creatures - 57"`, name-only card lines (qty=1), basic lands with trailing count `"Forests 9"`. Plural basic land names are normalised in `parseMoonveilLine`. `MOONVEIL_HEADER` regex activates the fallback parser.
 - **Aborted fetch requests**: `.catch()` fires instead of `.then()` when a fetch is aborted via AbortController. `setLoading(false)` must be called in catch for non-abort errors, otherwise spinner sticks. Check `err?.name !== "AbortError"`.
 - **`activeCount` for filters**: count a filter when it is active/non-default. `arenaOnly` defaulting to false means `(arenaOnly ? 1 : 0)` — count it only when ON. Previous code had `(!arenaOnly ? 1 : 0)` which was inverted.
+- **Mana curve must exclude lands** — `ManaCurveChart` skips cards whose `type_line` includes "land". Lands (especially basics) have CMC 0 and were counting as "Other" in the 0-bucket, dominating the chart scale and making low-cost spells nearly invisible.
+- **X-cost card sort order**: cards with `{X}` in mana cost sort after fixed-cost cards of the same CMC. Use `xCount(mana_cost)` (count of `{X}` occurrences) as the secondary sort key: `(cmc, xCount, name)`. Scryfall stores `{X}` spells with X=0 CMC, so `{X}{1}` has `cmc=1` same as `{1}` — the xCount secondary key distinguishes them.
 
 ### Auth / Supabase SSR
 
