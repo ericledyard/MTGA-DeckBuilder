@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const arenaOnly = searchParams.get("arena") === "1";
   const ownedOnly = searchParams.get("owned_only") === "1";
   const limit = Math.min(Number(searchParams.get("limit") ?? "48"), 200);
+  const offset = Math.max(0, Number(searchParams.get("offset") ?? "0"));
 
   const textQuery = searchParams.get("text")?.trim() ?? "";
   const colors = searchParams.get("colors")?.split(",").filter(Boolean) ?? null;
@@ -43,6 +44,7 @@ export async function GET(req: NextRequest) {
     p_format: format,
     p_arena_only: arenaOnly,
     p_limit: limit,
+    p_offset: offset,
     p_colors: colors?.length ? colors : undefined,
     p_cmc_values: cmcValues?.length ? cmcValues : undefined,
     p_rarities: rarities?.length ? rarities : undefined,
@@ -56,5 +58,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data ?? []);
+  const isUserSpecific = ownedOnly && !!userId;
+  const response = NextResponse.json(data ?? []);
+  if (!isUserSpecific) {
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=3600, stale-while-revalidate=86400",
+    );
+  }
+  return response;
 }
