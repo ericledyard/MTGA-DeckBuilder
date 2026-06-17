@@ -132,7 +132,11 @@ function CardsPageContent() {
       <CardGrid
         cards={cards}
         loading={loading}
-        backHref={`/cards?${filtersToParams(filters)}`}
+        backHref={(() => {
+          const params = filtersToParams(filters);
+          if (page > 0) params.set("page", String(page));
+          return `/cards?${params}`;
+        })()}
       />
 
       {!loading && (cards.length > 0 || page > 0) && (
