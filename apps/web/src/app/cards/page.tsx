@@ -62,6 +62,8 @@ function filtersToParams(filters: CardFilters): URLSearchParams {
   return params;
 }
 
+const PAGE_SIZE = 48;
+
 function CardsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -70,16 +72,26 @@ function CardsPageContent() {
   const [error, setError] = useState<string | null>(null);
 
   const filters = parseFilters(searchParams);
+  const page = Math.max(0, Number(searchParams.get("page") ?? "0"));
 
   function handleFiltersChange(patch: Partial<CardFilters>) {
     const next = { ...filters, ...patch };
     const params = filtersToParams(next);
+    // Reset to page 0 on any filter change
+    router.replace(`/cards?${params}`, { scroll: false });
+  }
+
+  function goToPage(next: number) {
+    const params = filtersToParams(filters);
+    if (next > 0) params.set("page", String(next));
     router.replace(`/cards?${params}`, { scroll: false });
   }
 
   const search = useCallback(async () => {
     const apiParams = filtersToParams(filters);
     if (filters.arenaOnly) apiParams.set("arena", "1");
+    apiParams.set("limit", String(PAGE_SIZE));
+    apiParams.set("offset", String(page * PAGE_SIZE));
     setLoading(true);
     setError(null);
     try {
@@ -91,11 +103,16 @@ function CardsPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps -- searchParams drives filters
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps -- searchParams drives filters + page
 
   useEffect(() => {
     search(); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch pattern
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [search]);
+
+  const hasPrev = page > 0;
+  // If we got a full page, there's likely a next page
+  const hasNext = cards.length === PAGE_SIZE;
 
   return (
     <div className="space-y-6">
@@ -117,6 +134,32 @@ function CardsPageContent() {
         loading={loading}
         backHref={`/cards?${filtersToParams(filters)}`}
       />
+
+      {!loading && (cards.length > 0 || page > 0) && (
+        <div className="flex items-center justify-between pt-2 pb-6">
+          <button
+            type="button"
+            onClick={() => goToPage(page - 1)}
+            disabled={!hasPrev}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            ← Previous
+          </button>
+          <span className="text-sm text-gray-500">
+            {page === 0
+              ? `Cards 1–${cards.length}`
+              : `Cards ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + cards.length}`}
+          </span>
+          <button
+            type="button"
+            onClick={() => goToPage(page + 1)}
+            disabled={!hasNext}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

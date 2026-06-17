@@ -17,3 +17,5 @@ Format: `[YYYY-MM-DD] <one-line summary of session>`
 [2026-06-05] Session 8: Phase 2.9 — Full commander support: migration 008 (is_commander + keywords), parser/validator/editor/import all updated, card image click-to-preview, commander counts as 1 of 100 (PRs #22–24)
 [2026-06-07] Session 12: Phase 3 complete — Supabase PAT fixed (CLI works from Bash), migration 012, /collection page, import modal, card grid +/− controls, "Collection" toggle in deck editor (PRs #37–38)
 [2026-06-08] Session 13: Import polish — Moonveil format parser, DFC lookup fix (migration 013 + modal byFrontFace map), plural basic lands, arena filter off by default, filter badge fix, migration 014 excludes tokens/memorabilia (PRs #39–44)
+[2026-06-09] Session 14: UI polish — set code search in card browser + deck editor, carousel arrow/swipe/dot improvements, "My Deck" visual view with card images + hover controls, hover zoom box fix, deck list sort CMC asc + lands at bottom (PRs #45–51)
+[2026-06-10] Session 15: Mana curve fix (exclude lands from chart), X-cost sort added (cmc, xCount, name) so {1} < {X}{1} < {X}{X}{1} everywhere (PR #52)

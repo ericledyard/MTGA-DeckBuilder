@@ -240,6 +240,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   );
   const [searchResults, setSearchResults] = useState<SearchCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchPage, setSearchPage] = useState(0);
   const [query, setQuery] = useState("");
   const [textQuery, setTextQuery] = useState("");
   const [setCodeQuery, setSetCodeQuery] = useState("");
@@ -294,14 +295,35 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     return () => clearTimeout(t);
   }, [setCodeQuery]);
 
-  // Fetch fires only on debounced values + instant filter toggles
+  const DECK_SEARCH_PAGE_SIZE = 60;
+
+  // Reset page when filters change
+  useEffect(() => {
+    setSearchPage(0);
+  }, [
+    debouncedQuery,
+    debouncedTextQuery,
+    colors,
+    arenaOnly,
+    ownedOnly,
+    cmcValues,
+    rarities,
+    filterTypes,
+    setCodes,
+    debouncedSetCodeQuery,
+  ]);
+
+  // Fetch fires on debounced filter values + page changes
   useEffect(() => {
     if (searchRef.current) searchRef.current.abort();
     const ctrl = new AbortController();
     searchRef.current = ctrl;
 
     setLoading(true);
-    const params = new URLSearchParams({ limit: "60" });
+    const params = new URLSearchParams({
+      limit: String(DECK_SEARCH_PAGE_SIZE),
+      offset: String(searchPage * DECK_SEARCH_PAGE_SIZE),
+    });
     if (debouncedQuery) params.set("q", debouncedQuery);
     if (debouncedTextQuery) params.set("text", debouncedTextQuery);
     if (colors.length) params.set("colors", colors.join(","));
@@ -323,7 +345,6 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         setLoading(false);
       })
       .catch((err) => {
-        // Ignore aborted requests — a new fetch is already in flight
         if (err?.name !== "AbortError") setLoading(false);
       });
   }, [
@@ -337,6 +358,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     filterTypes,
     setCodes,
     debouncedSetCodeQuery,
+    searchPage,
   ]);
 
   // Fetch sets lazily the first time the filter panel opens
@@ -1154,62 +1176,91 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                   No cards found
                 </div>
               ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-                  {searchResults.map((card) => {
-                    const qty = deckQtyMap.get(card.oracle_id) ?? 0;
-                    return (
-                      <button
-                        key={card.id}
-                        onClick={() => {
-                          if (!isDraggingRef.current) addCardFromSearch(card);
-                        }}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, card)}
-                        onDragEnd={handleDragEnd}
-                        onMouseEnter={() => handleCardMouseEnter(card)}
-                        onMouseLeave={handleCardMouseLeave}
-                        className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-grab active:cursor-grabbing"
-                      >
-                        {card.image_uri_normal ? (
-                          <img
-                            src={card.image_uri_normal}
-                            alt={card.name}
-                            className="w-full h-full object-cover transition-transform duration-150 group-hover:scale-105"
-                            loading="lazy"
+                <>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                    {searchResults.map((card) => {
+                      const qty = deckQtyMap.get(card.oracle_id) ?? 0;
+                      return (
+                        <button
+                          key={card.id}
+                          onClick={() => {
+                            if (!isDraggingRef.current) addCardFromSearch(card);
+                          }}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, card)}
+                          onDragEnd={handleDragEnd}
+                          onMouseEnter={() => handleCardMouseEnter(card)}
+                          onMouseLeave={handleCardMouseLeave}
+                          className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-grab active:cursor-grabbing"
+                        >
+                          {card.image_uri_normal ? (
+                            <img
+                              src={card.image_uri_normal}
+                              alt={card.name}
+                              className="w-full h-full object-cover transition-transform duration-150 group-hover:scale-105"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                              <span className="text-xs text-gray-500 text-center px-1 leading-tight">
+                                {card.name}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Hover overlay */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-150 flex items-end">
+                            <div className="w-full translate-y-full group-hover:translate-y-0 transition-transform duration-150 bg-gradient-to-t from-black/90 to-transparent p-1.5">
+                              <p className="text-white text-[10px] font-semibold leading-tight truncate">
+                                {card.name}
+                              </p>
+                              <ManaSymbols cost={card.mana_cost} size={11} />
+                            </div>
+                          </div>
+
+                          {/* Rarity dot */}
+                          <div
+                            className={`absolute top-1 right-1 w-2 h-2 rounded-full ${RARITY_DOT[card.rarity] ?? "bg-gray-500"} opacity-80`}
                           />
-                        ) : (
-                          <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                            <span className="text-xs text-gray-500 text-center px-1 leading-tight">
-                              {card.name}
-                            </span>
-                          </div>
-                        )}
 
-                        {/* Hover overlay */}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-150 flex items-end">
-                          <div className="w-full translate-y-full group-hover:translate-y-0 transition-transform duration-150 bg-gradient-to-t from-black/90 to-transparent p-1.5">
-                            <p className="text-white text-[10px] font-semibold leading-tight truncate">
-                              {card.name}
-                            </p>
-                            <ManaSymbols cost={card.mana_cost} size={11} />
-                          </div>
-                        </div>
+                          {/* In-deck badge */}
+                          {qty > 0 && (
+                            <div className="absolute top-1 left-1 min-w-[18px] h-[18px] bg-amber-500 text-gray-950 text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                              {qty}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                        {/* Rarity dot */}
-                        <div
-                          className={`absolute top-1 right-1 w-2 h-2 rounded-full ${RARITY_DOT[card.rarity] ?? "bg-gray-500"} opacity-80`}
-                        />
-
-                        {/* In-deck badge */}
-                        {qty > 0 && (
-                          <div className="absolute top-1 left-1 min-w-[18px] h-[18px] bg-amber-500 text-gray-950 text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                            {qty}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                  {/* Pagination controls */}
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-800">
+                    <button
+                      type="button"
+                      onClick={() => setSearchPage((p) => Math.max(0, p - 1))}
+                      disabled={searchPage === 0 || loading}
+                      className="px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      ← Prev
+                    </button>
+                    <span className="text-xs text-gray-500">
+                      {searchPage === 0
+                        ? `1–${searchResults.length}`
+                        : `${searchPage * DECK_SEARCH_PAGE_SIZE + 1}–${searchPage * DECK_SEARCH_PAGE_SIZE + searchResults.length}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSearchPage((p) => p + 1)}
+                      disabled={
+                        searchResults.length < DECK_SEARCH_PAGE_SIZE || loading
+                      }
+                      className="px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           )}
