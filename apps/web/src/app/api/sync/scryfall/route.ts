@@ -248,13 +248,15 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET — called by Vercel cron (no auth needed, Vercel signs cron requests)
-export async function GET() {
-  try {
-    const result = await runSync();
-    return NextResponse.json({ status: "ok", ...result });
-  } catch (err) {
-    console.error("Sync failed:", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
-  }
-}
+// GET removed along with the Vercel cron that was its only caller.
+//
+// It ran runSync() with no authentication at all — the comment claimed "Vercel
+// signs cron requests", but Vercel only adds an Authorization header when
+// CRON_SECRET is set, and the handler never checked one regardless. Any
+// anonymous visitor hitting this URL could kick off a full Scryfall sync. That
+// was survivable while a cron legitimately needed the endpoint; with scheduling
+// moved to GitHub Actions there is no caller left to justify it.
+//
+// Manual triggering still works via POST with the SYNC_SECRET bearer token,
+// though note it cannot finish inside Vercel Hobby's 60s function cap — use
+// `pnpm sync:cards` locally or the workflow_dispatch button in GitHub Actions.
