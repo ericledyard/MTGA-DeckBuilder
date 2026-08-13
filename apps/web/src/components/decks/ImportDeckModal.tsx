@@ -25,8 +25,24 @@ interface PreviewRow {
   isSideboard: boolean;
   isCommander: boolean;
   found: boolean;
+  /**
+   * "fuzzy" means the name did not match a card exactly and was resolved by
+   * similarity. Trigram scoring cannot reliably separate near-identical names
+   * ("Llanowar Elves" and "Llanowar Elite" score the same against "Llanowar
+   * Elf"), so these are surfaced for review rather than applied silently.
+   */
+  matchType: "exact" | "fuzzy";
+  /** Name of the card a fuzzy row actually resolved to. */
+  matchedName?: string;
   resolved?: ResolvedImportCard;
 }
+
+type LookupCard = ResolvedImportCard & {
+  set_code?: string | null;
+  collector_number?: string | null;
+};
+
+type FuzzyMatch = LookupCard & { query_name: string; score: number };
 
 interface ImportDeckModalProps {
   deckId: string;
@@ -84,20 +100,32 @@ export function ImportDeckModal({
       collectorNumber: c.collectorNumber ?? null,
     }));
 
-    let lookupData: (ResolvedImportCard & {
-      set_code?: string | null;
-      collector_number?: string | null;
-    })[] = [];
+    let lookupData: LookupCard[] = [];
+    let fuzzyData: FuzzyMatch[] = [];
     try {
       const res = await fetch("/api/cards/lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items, fuzzy: true }),
       });
-      if (!res.ok) throw new Error("lookup failed");
-      lookupData = await res.json();
-    } catch {
-      setError("Failed to look up cards. Please try again.");
+      if (!res.ok) {
+        // 503 means the lookup itself failed (database error or timeout) — that
+        // is not the same as "these cards don't exist", so say so.
+        const detail = await res
+          .json()
+          .then((b) => (typeof b?.error === "string" ? b.error : null))
+          .catch(() => null);
+        throw new Error(detail ?? "lookup failed");
+      }
+      const payload = await res.json();
+      lookupData = payload.cards ?? [];
+      fuzzyData = payload.fuzzy ?? [];
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message !== "lookup failed"
+          ? err.message
+          : "Failed to look up cards. Please try again.",
+      );
       setStep("input");
       return;
     }
@@ -117,9 +145,17 @@ export function ImportDeckModal({
         .map((c) => [c.name.toLowerCase().split(" // ")[0], c]),
     );
 
+    // Best fuzzy candidate per queried name, used only where exact matching failed.
+    const byFuzzy = new Map<string, FuzzyMatch>();
+    for (const f of fuzzyData) {
+      const key = f.query_name.toLowerCase();
+      const existing = byFuzzy.get(key);
+      if (!existing || f.score > existing.score) byFuzzy.set(key, f);
+    }
+
     const rows: PreviewRow[] = allParsed.map((c) => {
       const key = c.name.toLowerCase();
-      const matched =
+      const exact =
         c.setCode && c.collectorNumber
           ? (bySetCollector.get(
               setCollectorKey(c.setCode, c.collectorNumber),
@@ -127,6 +163,10 @@ export function ImportDeckModal({
             byName.get(key) ??
             byFrontFace.get(key))
           : (byName.get(key) ?? byFrontFace.get(key));
+
+      const fuzzy = exact ? undefined : byFuzzy.get(key);
+      const matched = exact ?? fuzzy;
+
       if (!matched)
         return {
           name: c.name,
@@ -134,6 +174,7 @@ export function ImportDeckModal({
           isSideboard: c.isSideboard,
           isCommander: c.isCommander,
           found: false,
+          matchType: "exact" as const,
         };
       return {
         name: c.name,
@@ -141,6 +182,8 @@ export function ImportDeckModal({
         isSideboard: c.isSideboard,
         isCommander: c.isCommander,
         found: true,
+        matchType: exact ? ("exact" as const) : ("fuzzy" as const),
+        matchedName: exact ? undefined : matched.name,
         resolved: {
           oracle_id: matched.oracle_id,
           name: matched.name,
@@ -174,6 +217,9 @@ export function ImportDeckModal({
 
   const foundCount = preview.filter((r) => r.found).length;
   const notFoundCount = preview.filter((r) => !r.found).length;
+  const fuzzyCount = preview.filter(
+    (r) => r.found && r.matchType === "fuzzy",
+  ).length;
   const totalQty = preview
     .filter((r) => r.found)
     .reduce((s, r) => s + r.quantity, 0);
@@ -250,6 +296,11 @@ export function ImportDeckModal({
                 <span className="text-green-400 font-medium">
                   ✓ {foundCount} found
                 </span>
+                {fuzzyCount > 0 && (
+                  <span className="text-amber-400 font-medium">
+                    ≈ {fuzzyCount} close match{fuzzyCount !== 1 ? "es" : ""}
+                  </span>
+                )}
                 {notFoundCount > 0 && (
                   <span className="text-red-400 font-medium">
                     ✗ {notFoundCount} not found
@@ -266,18 +317,43 @@ export function ImportDeckModal({
                   <div
                     key={i}
                     className={`flex items-center gap-2 px-2 py-1 rounded text-xs ${
-                      row.found ? "text-gray-300" : "text-red-400 bg-red-950/20"
+                      !row.found
+                        ? "text-red-400 bg-red-950/20"
+                        : row.matchType === "fuzzy"
+                          ? "text-gray-300 bg-amber-950/20"
+                          : "text-gray-300"
                     }`}
                   >
                     <span
-                      className={`shrink-0 text-[10px] font-bold w-3 ${row.found ? "text-green-500" : "text-red-500"}`}
+                      className={`shrink-0 text-[10px] font-bold w-3 ${
+                        !row.found
+                          ? "text-red-500"
+                          : row.matchType === "fuzzy"
+                            ? "text-amber-500"
+                            : "text-green-500"
+                      }`}
+                      aria-label={
+                        !row.found
+                          ? "Not found"
+                          : row.matchType === "fuzzy"
+                            ? "Close match"
+                            : "Found"
+                      }
                     >
-                      {row.found ? "✓" : "✗"}
+                      {!row.found ? "✗" : row.matchType === "fuzzy" ? "≈" : "✓"}
                     </span>
                     <span className="shrink-0 w-5 text-right text-gray-500 font-mono">
                       {row.quantity}
                     </span>
-                    <span className="flex-1 truncate">{row.name}</span>
+                    <span className="flex-1 truncate">
+                      {row.name}
+                      {row.matchType === "fuzzy" && row.matchedName && (
+                        <span className="text-amber-400/80">
+                          {" → "}
+                          {row.matchedName}
+                        </span>
+                      )}
+                    </span>
                     {row.isCommander && (
                       <span className="shrink-0 text-[9px] text-amber-500 uppercase tracking-widest font-bold">
                         CMD
@@ -291,6 +367,13 @@ export function ImportDeckModal({
                   </div>
                 ))}
               </div>
+
+              {fuzzyCount > 0 && (
+                <p className="text-[11px] text-amber-500">
+                  ≈ marks a name that didn&apos;t match exactly and was resolved
+                  to the closest card. Check these before importing.
+                </p>
+              )}
 
               {notFoundCount > 0 && (
                 <p className="text-[11px] text-yellow-600">

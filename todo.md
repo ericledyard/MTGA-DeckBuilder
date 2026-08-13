@@ -8,6 +8,54 @@ _Production URL: https://mtga-deckbuilder.vercel.app_
 
 ---
 
+## 🐞 Open Bugs (session 17)
+
+### ✅ Deck import — every card reported "not found" (FIXED, migration 017)
+
+Root cause: `lookup_cards_by_names` seq-scanned all ~114k `cards` rows on every
+call. There was **no index on `lower(name)`** — `cards_name_trgm_idx` is a GIN
+trigram index and serves fuzzy `%` matching, not equality. Migration 013's DFC
+front-face `OR` branch then guaranteed a full scan. Warm that was ~470ms; cold it
+measured **5,449ms** on Eric's 88-card list, past the `anon` 3s / `authenticated`
+8s `statement_timeout` Supabase pins per role. PostgREST returned an error, the
+API route swallowed it and returned `[]`, and the modal rendered that as
+"88 not found". Nothing to do with the RLS work — that was coincidental timing.
+
+- Measured after: **20ms warm** (was 470ms), cold path gone. All 88 cards resolve.
+- Ruled out along the way: RLS policies and table grants on `cards`, a stale
+  login session, and hidden characters in the pasted list (it was clean ASCII).
+
+### ✅ `/api/cards/lookup` swallowed errors and returned `[]` with HTTP 200 (FIXED)
+
+- Now retries transient failures (250/750/1500ms backoff) and returns **503**
+  with a message when every attempt fails. Verified against an unreachable
+  database: `503 {"error":"Card lookup failed. Please try again."}` in ~2.6s.
+- Name lists are batched (60 exact / 25 fuzzy) so one oversized import can't
+  build a single query slow enough to hit the statement timeout again.
+
+### ✅ Fuzzy name matching (ADDED, `lookup_cards_fuzzy`)
+
+- Runs **only** on names exact matching missed, so it can't reintroduce the
+  timeout. 28ms warm / 255ms cold for a 6-name probe.
+- Surfaced in the import modal as `≈ N close matches` with `typed name → matched
+card`, deliberately **not** applied silently: trigram scoring cannot separate
+  near-identical names (`Llanowar Elves` and `Llanowar Elite` both score 0.647
+  against `Llanowar Elf`, while bare `Llanowar` scores higher at 0.692).
+
+### Card browser: empty on first load until filters are reset
+
+- After signing in, the card browser showed no cards; clicking Reset filters
+  made them appear. Suspect persisted/default filter state (URL params or the
+  arena/collection toggles) starting in a state that matches nothing.
+
+### Card browser: slow, and the search debounce fights typing
+
+- Browser load is noticeably slow.
+- The 350ms search-ahead debounce fires mid-word and disrupts typing; needs
+  retuning (longer delay, and/or don't re-fire until the input settles).
+
+---
+
 ## Project Overview
 
 Full-featured MTG Arena deck management platform:
