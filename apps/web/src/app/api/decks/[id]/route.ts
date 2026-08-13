@@ -26,7 +26,7 @@ async function getAuthedDeck(id: string) {
   const oracleIds = [
     ...new Set((deck.deck_cards ?? []).map((dc) => dc.oracle_id)),
   ];
-  let cardMap: Record<string, unknown> = {};
+  const cardMap: Record<string, unknown> = {};
   if (oracleIds.length > 0) {
     const { data: cards } = await supabase
       .from("cards")

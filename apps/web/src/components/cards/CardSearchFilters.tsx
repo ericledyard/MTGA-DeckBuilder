@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { Format } from "@mtga/core";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -94,6 +95,22 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Local state that mirrors an external value, re-syncing when that value
+ * changes (e.g. back navigation or a filter reset). Adjusts during render
+ * rather than in an effect — the pattern React recommends over setState-in-
+ * effect, since it avoids the extra render pass.
+ */
+function useSyncedState<T>(external: T): [T, Dispatch<SetStateAction<T>>] {
+  const [value, setValue] = useState(external);
+  const [prev, setPrev] = useState(external);
+  if (!Object.is(prev, external)) {
+    setPrev(external);
+    setValue(external);
+  }
+  return [value, setValue];
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
@@ -108,20 +125,15 @@ export function CardSearchFilters({ filters, onChange }: Props) {
   const [setsExpanded, setSetsExpanded] = useState(false);
 
   // Local text state so the input stays snappy; debounce before updating URL
-  const [localQuery, setLocalQuery] = useState(filters.query);
-  const [localTextQuery, setLocalTextQuery] = useState(filters.textQuery);
-  const [localSetCode, setLocalSetCode] = useState(filters.setCodes[0] ?? "");
+  // Re-sync when URL params change externally (e.g. back navigation or reset)
+  const [localQuery, setLocalQuery] = useSyncedState(filters.query);
+  const [localTextQuery, setLocalTextQuery] = useSyncedState(filters.textQuery);
+  const [localSetCode, setLocalSetCode] = useSyncedState(
+    filters.setCodes[0] ?? "",
+  );
   const queryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setCodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Sync when URL params change externally (e.g. back navigation or reset)
-  useEffect(() => setLocalQuery(filters.query), [filters.query]);
-  useEffect(() => setLocalTextQuery(filters.textQuery), [filters.textQuery]);
-  useEffect(
-    () => setLocalSetCode(filters.setCodes[0] ?? ""),
-    [filters.setCodes],
-  );
 
   useEffect(() => {
     fetch("/api/cards/sets")

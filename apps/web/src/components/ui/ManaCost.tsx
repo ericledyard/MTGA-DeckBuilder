@@ -1,5 +1,3 @@
-const SYMBOL_SIZES: Record<string, string> = {};
-
 function symbolToFilename(sym: string): string {
   // {W/U} → WU, {2/W} → 2W, {W/P} → WP (phyrexian)
   return sym.replace(/\//g, "");

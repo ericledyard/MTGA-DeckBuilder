@@ -297,10 +297,10 @@ export function DeckEditor({ deck }: DeckEditorProps) {
 
   const DECK_SEARCH_PAGE_SIZE = 60;
 
-  // Reset page when filters change
-  useEffect(() => {
-    setSearchPage(0);
-  }, [
+  // Signature of every input that drives the card search. Compared during
+  // render rather than in an effect — adjusting state while rendering is the
+  // pattern React recommends over calling setState synchronously in an effect.
+  const filterSignature = JSON.stringify([
     debouncedQuery,
     debouncedTextQuery,
     colors,
@@ -313,13 +313,27 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     debouncedSetCodeQuery,
   ]);
 
+  const [prevFilterSignature, setPrevFilterSignature] =
+    useState(filterSignature);
+  const [prevSearchPage, setPrevSearchPage] = useState(searchPage);
+
+  if (prevFilterSignature !== filterSignature) {
+    // Filters moved — back to page one, and a fetch is about to fire
+    setPrevFilterSignature(filterSignature);
+    setPrevSearchPage(0);
+    setSearchPage(0);
+    setLoading(true);
+  } else if (prevSearchPage !== searchPage) {
+    setPrevSearchPage(searchPage);
+    setLoading(true);
+  }
+
   // Fetch fires on debounced filter values + page changes
   useEffect(() => {
     if (searchRef.current) searchRef.current.abort();
     const ctrl = new AbortController();
     searchRef.current = ctrl;
 
-    setLoading(true);
     const params = new URLSearchParams({
       limit: String(DECK_SEARCH_PAGE_SIZE),
       offset: String(searchPage * DECK_SEARCH_PAGE_SIZE),

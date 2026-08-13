@@ -37,9 +37,6 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
   );
   const touchStartX = useRef<number | null>(null);
 
-  const active = printings[activeIndex];
-  if (!active) return null;
-
   // Explicit navigation — locks index so mouse-leave doesn't reset it
   function goTo(i: number) {
     const clamped = Math.max(0, Math.min(i, printings.length - 1));
@@ -94,6 +91,10 @@ export function CardPrintingsCarousel({ printings, initialIndex = 0 }: Props) {
       document.removeEventListener("keydown", onKey);
     };
   }, [zoomedPrinting]);
+
+  // Guard sits below every hook so hook order stays stable across renders
+  const active = printings[activeIndex];
+  if (!active) return null;
 
   return (
     <>
