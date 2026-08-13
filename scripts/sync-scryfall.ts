@@ -1,22 +1,39 @@
 /**
  * Scryfall bulk data sync script.
- * Downloads default_cards bulk JSON from Scryfall and upserts into Supabase.
- * Streams the file to disk first to avoid Node's string length limit (~500MB).
+ * Downloads the default_cards bulk file from Scryfall and upserts into Supabase.
+ * Streams to disk first to avoid Node's string length limit (~500MB).
  * Run with: pnpm tsx scripts/sync-scryfall.ts
  *
  * Env required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *
+ * Bulk format note: Scryfall's /bulk-data entries used to expose `download_uri`
+ * pointing at a plain JSON array. They now expose `jsonl_download_uri` pointing
+ * at gzipped JSONL, and `size` became `compressed_size`. Reading the old field
+ * yielded undefined and the sync threw on every run — the daily cron had been
+ * failing silently since, freezing the card data. Fields are validated up front
+ * now so a future rename fails loudly instead of looking like a network error.
  */
 
 import { createWriteStream, createReadStream } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
+import { createGunzip } from "node:zlib";
+import { createInterface } from "node:readline";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import streamArray from "stream-json/streamers/stream-array";
 import { createServiceClient } from "../packages/db/src/client";
 
 const SCRYFALL_BULK_INDEX = "https://api.scryfall.com/bulk-data";
 const BATCH_SIZE = 500;
+
+// --dry-run  parse and report, write nothing (use to sanity-check field mapping
+//            after a Scryfall schema change before touching 114k live rows)
+// --limit=N  stop after N cards; implies a partial run, so pair with --dry-run
+const DRY_RUN = process.argv.includes("--dry-run");
+const LIMIT = (() => {
+  const arg = process.argv.find((a) => a.startsWith("--limit="));
+  return arg ? Number(arg.split("=")[1]) : Infinity;
+})();
 
 // Only formats in our mtg_format enum — Scryfall includes many others
 // (explorer, historicbrawl, oathbreaker, penny, premodern, etc.) that we ignore
@@ -36,9 +53,9 @@ const SUPPORTED_FORMATS = new Set([
 
 interface BulkDataEntry {
   type: string;
-  download_uri: string;
+  jsonl_download_uri: string;
   updated_at: string;
-  size: number;
+  compressed_size: number;
 }
 
 interface ScryfallCard {
@@ -115,23 +132,28 @@ async function downloadToFile(downloadUri: string, destPath: string) {
   await pipeline(res.body, dest);
 }
 
-function streamCards(filePath: string): AsyncIterable<ScryfallCard> {
-  const stream = streamArray.withParserAsStream();
-  createReadStream(filePath).pipe(stream);
-  return {
-    [Symbol.asyncIterator]() {
-      return (async function* () {
-        for await (const { value } of stream) {
-          yield value as ScryfallCard;
-        }
-      })();
-    },
-  };
+/**
+ * Streams gzipped JSONL: gunzip, then one JSON object per line.
+ *
+ * Simpler and cheaper than the old JSON-array parse — no incremental parser is
+ * needed, and nothing ever holds the whole file. Blank lines are skipped so a
+ * trailing newline doesn't throw.
+ */
+async function* streamCards(filePath: string): AsyncGenerator<ScryfallCard> {
+  const lines = createInterface({
+    input: createReadStream(filePath).pipe(createGunzip()),
+    crlfDelay: Infinity,
+  });
+  for await (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    yield JSON.parse(trimmed) as ScryfallCard;
+  }
 }
 
 async function syncCards(downloadUri: string) {
   const supabase = createServiceClient();
-  const tmpFile = join(tmpdir(), `scryfall-cards-${Date.now()}.json`);
+  const tmpFile = join(tmpdir(), `scryfall-cards-${Date.now()}.jsonl.gz`);
 
   console.log(`Downloading card data from ${downloadUri}…`);
   await downloadToFile(downloadUri, tmpFile);
@@ -151,12 +173,16 @@ async function syncCards(downloadUri: string) {
     }
   }
   const setRows = [...setsMap.values()];
-  for (let i = 0; i < setRows.length; i += BATCH_SIZE) {
-    await supabase
-      .from("sets")
-      .upsert(setRows.slice(i, i + BATCH_SIZE), { onConflict: "code" });
+  if (DRY_RUN) {
+    console.log(`[dry-run] would upsert ${setRows.length} sets.`);
+  } else {
+    for (let i = 0; i < setRows.length; i += BATCH_SIZE) {
+      await supabase
+        .from("sets")
+        .upsert(setRows.slice(i, i + BATCH_SIZE), { onConflict: "code" });
+    }
+    console.log(`Upserted ${setRows.length} sets.`);
   }
-  console.log(`Upserted ${setRows.length} sets.`);
 
   // Pass 2: stream cards + legalities in batches
   let cardCount = 0;
@@ -168,6 +194,10 @@ async function syncCards(downloadUri: string) {
 
   const flushCards = async () => {
     if (cardBatch.length === 0) return;
+    if (DRY_RUN) {
+      cardBatch = [];
+      return;
+    }
     const { error } = await supabase
       .from("cards")
       .upsert(cardBatch, { onConflict: "scryfall_id" });
@@ -177,6 +207,11 @@ async function syncCards(downloadUri: string) {
 
   const flushLegalities = async () => {
     if (legalityBatch.length === 0) return;
+    if (DRY_RUN) {
+      legalityCount += legalityBatch.length;
+      legalityBatch = [];
+      return;
+    }
     const { error } = await supabase
       .from("card_legalities")
       .upsert(legalityBatch, { onConflict: "oracle_id,format" });
@@ -218,7 +253,11 @@ async function syncCards(downloadUri: string) {
       flavor_text: c.flavor_text ?? null,
       digital: c.digital,
       scryfall_uri: c.scryfall_uri,
-      set_type: c.set_type,
+      // NOTE: no set_type here. Migration 007 meant to denormalise it onto
+      // cards but was never applied to production, so the column does not
+      // exist and including it makes PostgREST reject every batch. set_type
+      // lives on `sets`; migrations 014/015 join to it. Do not re-add without
+      // applying 007 first.
       updated_at: updatedAt,
     });
 
@@ -230,10 +269,18 @@ async function syncCards(downloadUri: string) {
       }
     }
 
+    // Show the first mapped row so a schema change is visible before it is
+    // written across every card.
+    if (DRY_RUN && cardCount === 0) {
+      console.log("[dry-run] first mapped card row:");
+      console.log(JSON.stringify(cardBatch[0], null, 2));
+    }
+
     cardCount++;
     if (cardBatch.length >= BATCH_SIZE) await flushCards();
     if (legalityBatch.length >= BATCH_SIZE) await flushLegalities();
     if (cardCount % 5000 === 0) console.log(`  ${cardCount} cards processed…`);
+    if (cardCount >= LIMIT) break;
   }
 
   await flushCards();
@@ -241,16 +288,36 @@ async function syncCards(downloadUri: string) {
 
   await unlink(tmpFile);
   console.log(
-    `Done. ${cardCount} cards and ${legalityCount} legality rows synced.`,
+    DRY_RUN
+      ? `[dry-run] Done. ${cardCount} cards and ${legalityCount} legality rows parsed. Nothing written.`
+      : `Done. ${cardCount} cards and ${legalityCount} legality rows synced.`,
   );
 }
 
 async function main() {
   const entries = await fetchBulkIndex();
   const defaultCards = entries.find((e) => e.type === "default_cards");
-  if (!defaultCards) throw new Error("default_cards bulk entry not found");
+  if (!defaultCards) {
+    throw new Error(
+      `default_cards bulk entry not found. Available types: ${entries
+        .map((e) => e.type)
+        .join(", ")}`,
+    );
+  }
+  // Fail loudly on a field rename rather than passing undefined to fetch(),
+  // which is how this sync broke silently for ten weeks.
+  if (!defaultCards.jsonl_download_uri) {
+    throw new Error(
+      `default_cards entry has no jsonl_download_uri — Scryfall's bulk-data ` +
+        `schema may have changed again. Fields present: ${Object.keys(
+          defaultCards,
+        ).join(", ")}`,
+    );
+  }
+  const sizeMb = (defaultCards.compressed_size / 1e6).toFixed(1);
   console.log(`Bulk data last updated: ${defaultCards.updated_at}`);
-  await syncCards(defaultCards.download_uri);
+  console.log(`Downloading default_cards (${sizeMb} MB gzipped)…`);
+  await syncCards(defaultCards.jsonl_download_uri);
 }
 
 main().catch((err) => {

@@ -3,6 +3,7 @@ import { createWriteStream, createReadStream } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { createInterface } from "node:readline";
+import { createGunzip } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
@@ -38,8 +39,7 @@ function getImageUris(card: Record<string, unknown>) {
     (card.image_uris as Record<string, string> | undefined) ??
     (
       card.card_faces as
-        | Array<{ image_uris?: Record<string, string> }>
-        | undefined
+        Array<{ image_uris?: Record<string, string> }> | undefined
     )?.[0]?.image_uris;
   return {
     normal: uris?.normal ?? null,
@@ -48,55 +48,26 @@ function getImageUris(card: Record<string, unknown>) {
   };
 }
 
-// Stream JSON array objects from file using readline — no external dependencies.
-// Tracks { depth and handles escaped chars / strings to find object boundaries.
-async function* streamJsonArray(
+// Stream gzipped JSONL: gunzip, then one JSON object per line.
+//
+// Replaces a hand-rolled brace-depth scanner over a JSON array — Scryfall's bulk
+// files are JSONL now, so the incremental parser is unnecessary. Nothing ever
+// holds more than one line in memory.
+async function* streamJsonl(
   filePath: string,
 ): AsyncGenerator<Record<string, unknown>> {
   const rl = createInterface({
-    input: createReadStream(filePath),
+    input: createReadStream(filePath).pipe(createGunzip()),
     crlfDelay: Infinity,
   });
 
-  let lines: string[] = [];
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
   for await (const line of rl) {
     const trimmed = line.trim();
-    // Skip the outer array brackets
-    if (trimmed === "[" || trimmed === "]") continue;
-
-    lines.push(line);
-
-    for (const char of line) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (char === "\\" && inString) {
-        escaped = true;
-        continue;
-      }
-      if (char === '"') {
-        inString = !inString;
-        continue;
-      }
-      if (inString) continue;
-      if (char === "{") depth++;
-      else if (char === "}") depth--;
-    }
-
-    if (depth === 0 && lines.length > 0) {
-      // Strip trailing comma that separates array elements
-      const json = lines.join("\n").replace(/,\s*$/, "");
-      try {
-        yield JSON.parse(json) as Record<string, unknown>;
-      } catch {
-        // skip any malformed object
-      }
-      lines = [];
+    if (!trimmed) continue;
+    try {
+      yield JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      // skip any malformed line
     }
   }
 }
@@ -111,14 +82,29 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
     headers: { "User-Agent": UA },
   });
   const index = (await indexRes.json()) as {
-    data: Array<{ type: string; download_uri: string }>;
+    data: Array<{
+      type: string;
+      jsonl_download_uri?: string;
+      compressed_size?: number;
+    }>;
   };
   const entry = index.data.find((e) => e.type === "default_cards");
   if (!entry) throw new Error("default_cards bulk entry not found");
+  // Scryfall replaced `download_uri` (JSON array) with `jsonl_download_uri`
+  // (gzipped JSONL). Reading the old field passed undefined to fetch() and threw
+  // on every run, so the daily cron failed silently for ten weeks. Fail loudly
+  // if the schema moves again.
+  if (!entry.jsonl_download_uri) {
+    throw new Error(
+      `default_cards entry has no jsonl_download_uri; fields present: ${Object.keys(
+        entry,
+      ).join(", ")}`,
+    );
+  }
 
   // Download bulk file to /tmp
-  const tmpFile = join(tmpdir(), `scryfall-${Date.now()}.json`);
-  const dlRes = await fetch(entry.download_uri, {
+  const tmpFile = join(tmpdir(), `scryfall-${Date.now()}.jsonl.gz`);
+  const dlRes = await fetch(entry.jsonl_download_uri, {
     headers: { "User-Agent": UA },
   });
   if (!dlRes.ok || !dlRes.body)
@@ -129,7 +115,7 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
 
   // Pass 1: collect sets
   const setsMap = new Map<string, object>();
-  for await (const c of streamJsonArray(tmpFile)) {
+  for await (const c of streamJsonl(tmpFile)) {
     if (!setsMap.has(c.set as string)) {
       setsMap.set(c.set as string, {
         code: c.set,
@@ -177,7 +163,7 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
     legalityBatch = [];
   };
 
-  for await (const c of streamJsonArray(tmpFile)) {
+  for await (const c of streamJsonl(tmpFile)) {
     if (!c.oracle_id) continue;
     const imgs = getImageUris(c);
     const isAlchemy =
@@ -210,7 +196,9 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
       flavor_text: (c.flavor_text as string) ?? null,
       digital: c.digital,
       scryfall_uri: c.scryfall_uri,
-      set_type: c.set_type,
+      // NOTE: no set_type here — the column does not exist on `cards`
+      // (migration 007 was never applied to production) and including it makes
+      // PostgREST reject every batch. See scripts/sync-scryfall.ts.
       updated_at: updatedAt,
     });
 

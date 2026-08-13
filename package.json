@@ -6,12 +6,12 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "sync:cards": "tsx --env-file=apps/web/.env.local scripts/sync-scryfall.ts",
+    "sync:cards:dry": "tsx --env-file=apps/web/.env.local scripts/sync-scryfall.ts --dry-run --limit=2000"
   },
   "devDependencies": {
-    "@types/stream-json": "^1.7.8",
-    "stream-chain": "^4.2.2",
-    "stream-json": "^3.3.0",
+    "@types/node": "^20",
     "tsx": "^4.22.4",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2"
