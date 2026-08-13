@@ -48,7 +48,7 @@ Full-featured MTG Arena deck management platform:
 - [x] `todo.md` project tracker created (this file)
 - [x] Memory files created: project_status.md, project_stack.md, gotchas_and_rules.md
 - [x] `/endsession` skill created at `.claude/skills/endsession/SKILL.md`
-- [x] `/resume` skill created at `.claude/skills/resume/SKILL.md`
+- [x] Session-resume command at `.claude/commands/continue.md` (`/continue`) — the old `/resume` skill referenced here was never actually committed
 
 ### ✅ Phase 1 — Foundation (COMPLETE — live in production)
 
@@ -215,6 +215,24 @@ Full-featured MTG Arena deck management platform:
 
 - [x] **Mana curve land exclusion** — `ManaCurveChart` now skips land cards; basics were landing in 0-bucket as "Other" and dominating the scale, hiding spells like Sol Ring (PR #52)
 - [x] **X-cost card sort** — added `xCount()` helper counting `{X}` symbols in `mana_cost`; deck list and visual view now sort as `(cmc, xCount, name)` so `{1}` < `{X}{1}` < `{X}{X}{1}` (PR #52)
+
+### ✅ Session 16 — New Machine Setup & Codebase Health (COMPLETE — live in production, session 16)
+
+Infrastructure and correctness only; no feature work, so no phase advanced.
+
+- [x] **Repo re-provisioned on a new MacBook Pro** — pnpm 9.15.0 via corepack, deps installed, build/lint/typecheck green
+- [x] **CLIs installed** — Homebrew, `gh` 2.97.0 + `supabase` 2.114.0 (user-local in `~/.local/bin`), `vercel` 58.11.0; all authenticated
+- [x] **Playwright working** — Node + Python (they pin different chromium revisions); verified driving real Chromium against the dev server
+- [x] **All 9 eslint errors fixed** — conditional hooks in `CardPrintingsCarousel`, setState-in-effect in `CardSearchFilters` + `DeckEditor`, dead bindings removed (0 errors, 11 known `<img>` warnings remain)
+- [x] **Typecheck commit gate un-broken** — it ran `npx tsc --noEmit` with no root tsconfig, printed help and exited 0; had been fail-open since init
+- [x] **Card art fixed in local dev** — Scryfall 400s Next's optimizer over User-Agent; `images.unoptimized` gated to development
+- [x] **Dead Playwright MCP removed** — `@anthropic/mcp-playwright` does not exist on npm; plugin supplies a working server
+- [x] **`CLAUDE.md` + `.cc-rig.json` corrected** for the pnpm monorepo; `project-patterns` skill filled in from the actual tree
+- [x] **`/continue` and `/new-terminal` commands added** (ported from GreatBanquet-Site and re-pathed)
+- [x] **Direct pushes to main enabled** — `block-main` hook unregistered; Vercel auto-deploys
+- [x] **Migration 016** written to pin `search_path` on SECURITY DEFINER functions — committed, not yet executed (live DB already fixed by hand in the dashboard)
+- [ ] Run migration 016 in the Supabase SQL Editor once, to confirm it applies cleanly — not urgent
+- [ ] Optionally migrate `gh`/`supabase` from `~/.local/bin` to Homebrew for managed upgrades
 
 ### ✅ Phase 3 — Collection Management (COMPLETE except stats — live in production, session 12)
 
