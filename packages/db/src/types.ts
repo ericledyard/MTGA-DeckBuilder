@@ -376,6 +376,7 @@ export type Database = {
           image_uri_art_crop: string | null
           image_uri_normal: string | null
           is_alchemy: boolean | null
+          is_unreleased: boolean | null
           mana_cost: string | null
           name: string | null
           oracle_id: string | null
@@ -385,6 +386,7 @@ export type Database = {
           set_code: string | null
           set_codes: string[] | null
           set_name: string | null
+          set_type: string | null
           type_line: string | null
         }
         Relationships: [
@@ -399,6 +401,7 @@ export type Database = {
       }
     }
     Functions: {
+      current_set_release_date: { Args: never; Returns: string }
       get_cards_by_oracle_ids: {
         Args: { p_oracle_ids: string[] }
         Returns: {
@@ -486,6 +489,15 @@ export type Database = {
           set_code: string
           type_line: string
         }[]
+      }
+      presumed_format_legality: {
+        Args: {
+          p_format: string
+          p_on_arena: boolean
+          p_rarity: string
+          p_set_type: string
+        }
+        Returns: boolean
       }
       refresh_cards_playable: { Args: never; Returns: undefined }
       remove_collection_card: {
