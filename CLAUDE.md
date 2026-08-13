@@ -2,27 +2,37 @@
 
 # MTGA-DeckBuilder
 
-A nextjs project
+Magic: The Gathering Arena deck builder — pnpm + turbo monorepo.
 
-- **Stack**: typescript / nextjs
+- **Stack**: typescript / nextjs 16 (App Router) / Supabase
 - **Type**: web_fullstack
-- **Source**: `app/`  **Tests**: `src/__tests__/`
-- **Claude Code**: v2.1.126 (cc-rig pinned)
+- **Packages**: `apps/web` (@mtga/web) · `packages/core` (pure domain logic)
+  · `packages/db` (Supabase client + types)
+- **Source**: `apps/web/src/` **Tests**: none wired up yet
+- **Claude Code**: v2.1.229
 
 ## Commands
 
-- **Test**: `npm test`
-- **Lint**: `npm run lint`
+Run from the repo root — turbo handles package ordering.
+
+- **Test**: _none_ — no suite exists; never claim tests pass
+- **Lint**: `pnpm lint`
 - **Format**: `npx prettier --write`
-- **Typecheck**: `npx tsc --noEmit`
-- **Build**: `next build`
+- **Typecheck**: `pnpm typecheck`
+- **Build**: `pnpm build`
+- **Dev**: `pnpm dev`
+
+pnpm comes from corepack (`corepack enable`), pinned to 9.15.0 by
+`packageManager`. Env lives in `apps/web/.env.local`, not the repo root.
 
 ## Guardrails
 
-- Run tests before committing. Run lint before pushing.
+- Run `pnpm lint` and `pnpm typecheck` before committing. Both gate commits via hooks.
 - Never commit .env, credentials, or secrets.
 - Never read, output, or log API keys, private keys, tokens, or seed phrases.
-- Never push directly to main/master.
+- Pushing directly to `main` is fine — hobby project, and Vercel auto-deploys from
+  `main`. No feature branch or PR required. The `block-main` hook is intentionally
+  disabled; re-register it in `.claude/settings.json` to restore the old behavior.
 - Never run destructive commands (rm -rf /, DROP TABLE).
 - Prefer editing existing files over creating new ones.
 - Keep commits small and focused. One concern per commit.
@@ -30,52 +40,50 @@ A nextjs project
 - Never toggle hooks, MCP servers, or plugins mid-session.
 - Never switch models mid-conversation. Use subagents for model escalation.
 - Load memory via Read tool at runtime. Never paste memory into CLAUDE.md.
-- Use `npm ls --depth=0`, never unbounded `npm ls`.
-- Use `npx jest --silent` or `npx vitest --reporter=dot` for exploration runs.
+- Use `pnpm ls --depth=0`, never unbounded `pnpm ls`.
 - Keep explanations to 1-2 sentences. Lead with the answer, not the reasoning.
 
 ## Compaction Survival
 
-When context is compacted, preserve these project essentials:
+**Preserve**: the stack + commands above; source layout; current task, branch, and
+decisions made this session; team memory location `memory/` (reload `decisions.md`).
 
-### Always Preserve
-- Project: MTGA-DeckBuilder (typescript/nextjs)
-- Commands: test=`npm test`, lint=`npm run lint`, format=`npx prettier --write`
-- Source: `app/`, Tests: `src/__tests__/`
-- Current task, branch name, and decisions made this session
-- Team memory location: `memory/` (reload `decisions.md` after compaction)
+**Discard**: verbose tool output, file listings, exploration results, resolved
+discussions, completed sub-tasks, full file contents (re-read if needed).
 
-### Always Discard
-- Verbose tool output, file listings, and exploration results
-- Resolved discussions and completed sub-tasks
-- Full file contents (re-read after compaction if needed)
-
-### Custom /compact
-When using `/compact`, include: "Preserve MTGA-DeckBuilder project context: typescript/nextjs, commands, current task, and key decisions."
+With `/compact`, include: "Preserve MTGA-DeckBuilder project context: pnpm/turbo
+monorepo, commands, current task, and key decisions."
 
 ## Workflow Principles
 
 - **Plan first.** Before writing any code, describe your approach and wait for approval. Use `/plan` or `/assumptions` before implementing non-trivial changes.
 - **Clarify before coding.** If the requirements are ambiguous, ask clarifying questions before writing any code.
 - **Research before coding.** Spawn an explorer subagent (Task tool with Explore type) to map unfamiliar code before modifying it. Keep the main context clean.
-- **Suggest tests.** After writing code, list the edge cases and suggest test cases to cover them.
+- **Suggest tests.** After writing code, list the edge cases worth covering. There is
+  no runner yet, so this is a written list, not a passing suite — say so plainly.
 - **Break up large changes.** If a task requires changes to more than 3 files, stop and break it into smaller tasks first.
-- **Test-first debugging.** When there's a bug, start by writing a test that reproduces it, then fix it until the test passes.
-- **Verify before done.** Run tests, lint, and typecheck before committing. Never assume code works without running it.
-- **Fix failures immediately.** When tests or lint fail, diagnose and fix the root cause now. Don't log it for later.
+- **Verify before done.** Run `pnpm lint`, `pnpm typecheck`, and `pnpm build` before
+  committing. For UI changes, boot `pnpm dev` and hit the route — a green build does
+  not prove a component renders. Never assume code works without running it.
+- **Fix failures immediately.** When lint or typecheck fails, diagnose and fix the root cause now. Don't log it for later.
 - **Learn from corrections.** Every time you are corrected, reflect on what went wrong and plan to avoid the same mistake again.
 - **Demand elegance.** After getting code working, consider a refactor pass. Leave code measurably better than you found it.
 - **Save learnings.** Auto-memory handles personal continuity. Use `/remember` for team knowledge — decisions, patterns, and gotchas.
 - **Edit, don't restart.** When refining a prompt or approach, edit the previous message instead of starting a new conversation. Batch related questions into a single message.
 
 ## Framework Rules (Next.js / App Router)
-- Use the App Router (`app/` directory). Do NOT use the Pages Router.
+
+- Use the App Router (`apps/web/src/app/`). Do NOT use the Pages Router.
 - Default to React Server Components (RSC). Add `"use client"` only when the component needs browser APIs, useState, useEffect, or event handlers.
 - Data fetching belongs in Server Components or Route Handlers, never in client components. Use `fetch()` with Next.js caching options.
-- Route Handlers go in `app/api/**/route.ts`. Use NextRequest/NextResponse.
+- Route Handlers go in `apps/web/src/app/api/**/route.ts`. Use NextRequest/NextResponse.
 - Layouts (`layout.tsx`) own shared UI. Do not duplicate nav/footer in pages.
 - Use `loading.tsx` and `error.tsx` for Suspense boundaries per route segment.
-- Image optimization: always use `next/image`, never raw `<img>` tags.
+- Image optimization: prefer `next/image`. Exception: Scryfall CDN card art uses
+  raw `<img>` with an eslint-disable — converting needs `remotePatterns` config
+  and has Vercel cost implications. Don't silently convert these.
+- Never call `setState` synchronously in an effect body — `react-hooks/set-state-in-effect`
+  is an error here. Adjust state during render instead (see `.claude/skills/project-patterns`).
 - Environment variables: server-only by default. Prefix with `NEXT_PUBLIC_` only when the value must reach the browser.
 
 ## Agent Docs
@@ -86,42 +94,45 @@ Additional docs: @agent_docs/testing.md @agent_docs/deployment.md
 
 ## Installed Skills
 
-Community skills auto-installed by cc-rig:
+12 community skills auto-installed by cc-rig (coding, testing, review, security,
+devops). List them with `cc-rig skills list` | Browse: [skills.sh](https://skills.sh/)
 
-- **Coding**: vercel-react-best-practices (vercel-labs/agent-skills)
-  - next-best-practices (vercel-labs/next-skills)
-  - web-design-guidelines (vercel-labs/agent-skills)
-  - frontend-design (anthropics/skills)
-  - tailwind-design-system (wshobson/agents)
-- **Testing**: webapp-testing (anthropics/skills)
-- **Review**: requesting-code-review (obra/superpowers)
-  - receiving-code-review (obra/superpowers)
-- **Security**: owasp-security (agamm/claude-code-owasp)
-  - insecure-defaults (trailofbits/skills)
-- **Devops**: github-actions-generator (akin-ozer/cc-devops-skills)
-  - finishing-a-development-branch (obra/superpowers)
+Project-local, hand-written (not from cc-rig):
 
-Manage: `cc-rig skills list` | Browse: [skills.sh](https://skills.sh/)
+- **project-patterns** — this repo's real conventions: package boundaries,
+  naming, Supabase client split, the search/filter state pattern. Read it
+  before adding files or naming things.
+- **endsession** — `/endsession` writes progress to `todo.md` + memory.
+
+## Session Commands
+
+- `/continue` — start-of-session briefing: memory, git state, open todos.
+- `/new-terminal` — end-of-session wrap-up before exiting a terminal.
+- `/endsession` — the fuller wrap-up skill; writes `todo.md` phase progress.
 
 ## Memory
 
 Two memory systems work together:
+
 - **Auto-memory** (`~/.claude/projects/`): Personal notes, loaded automatically each session.
 - **Team memory** (`memory/`): Git-tracked shared knowledge for the whole team.
 
 Team memory files — load via Read tool when context is needed:
+
 - `memory/decisions.md` — architectural decisions
 - `memory/patterns.md` — discovered patterns
 - `memory/gotchas.md` — known issues and surprises
 - `memory/people.md` — team ownership
 - `memory/session-log.md` — brief session history
 - See `memory/MEMORY-README.md` for usage instructions.
+- Open tasks live in `todo.md` at the repo root (not under `memory/`).
 
 ## Current Context
 
 _This section is updated each session. Everything above is static._
 
-- **Current task**: (none)
+- **Current task**: (none) — machine re-setup done 2026-08-13
 - **Branch**: main
+- **Open**: no test suite wired up; 11 `no-img-element` warnings are deliberate
 
 > **cc-rig loop** · run `/cc-rig retro` weekly to track drift and savings. `/cc-rig drift` after a Claude Code upgrade, `/cc-rig refresh <area>` to realign.
