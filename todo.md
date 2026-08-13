@@ -42,17 +42,51 @@ card`, deliberately **not** applied silently: trigram scoring cannot separate
   near-identical names (`Llanowar Elves` and `Llanowar Elite` both score 0.647
   against `Llanowar Elf`, while bare `Llanowar` scores higher at 0.692).
 
-### Card browser: empty on first load until filters are reset
+### ✅ Card browser showed "No cards found" / empty on first load (MITIGATED, not cured)
 
-- After signing in, the card browser showed no cards; clicking Reset filters
-  made them appear. Suspect persisted/default filter state (URL params or the
-  arena/collection toggles) starting in a state that matches nothing.
+Not a filter-state bug as first suspected. `/api/cards/search` was returning
+**HTTP 500 `canceling statement due to statement timeout`**, and the deck
+editor's grid never checked `res.ok` — so a failed request rendered as
+"No cards found". Resetting filters appeared to fix it only because the retry
+happened to land on a warm cache.
 
-### Card browser: slow, and the search debounce fights typing
+Done:
 
-- Browser load is noticeably slow.
+- search route retries transient failures, then returns 503 with a message
+- deck editor + card browser show the error and a **Retry** button
+- both `/api/cards/sets` consumers guard with `Array.isArray` — the route
+  returns `{ error }` on failure and `sets` is rendered with `.filter()`, which
+  crashed the entire page with `sets.filter is not a function`
+
+Verified in production after deploy: first request 25s but **succeeded** where
+it previously 500'd; subsequent requests ~0.8–1.6s.
+
+### 🔴 `search_cards` scans the whole catalogue on every search (ROOT CAUSE, OPEN)
+
+The retry above makes the timeout survivable, not impossible — a 25s first load
+is still bad. The structural problem:
+
+`search_cards` does `DISTINCT ON (c.oracle_id)` across all **114,546** printings,
+sorts all **37,598** distinct oracle_ids by `(cmc, name)`, and only then applies
+LIMIT/OFFSET. An unfiltered browse touches ~116,451 shared buffers against a
+226MB table. Warm ~215ms; cold it measured **11.3s** and gets cancelled.
+
+No index fixes this — the dedup+re-sort has to materialise the whole catalogue
+before it can page. Proposed fix: a **materialized view of one row per
+oracle_id** (37,598 rows, preferring the arena/imaged printing, mirroring the
+existing `DISTINCT ON` preference order), indexed on `(cmc, name)`, refreshed
+`CONCURRENTLY` at the end of the Scryfall sync. Search then filters a table a
+third the size and reads the page straight off the index.
+
+Touches `scripts/sync-scryfall.ts` and `api/sync/scryfall/route.ts` as well as a
+new migration, so it was not bundled with the retry fix.
+
+### Card browser: the search debounce fights typing
+
 - The 350ms search-ahead debounce fires mid-word and disrupts typing; needs
   retuning (longer delay, and/or don't re-fire until the input settles).
+- Worth re-checking after the materialized view lands — some of the "fighting"
+  is likely slow responses landing out of order rather than the debounce itself.
 
 ---
 
