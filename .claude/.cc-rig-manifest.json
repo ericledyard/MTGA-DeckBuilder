@@ -12,11 +12,14 @@
     ".claude/agents/explorer.md",
     ".claude/agents/refactorer.md",
     ".claude/agents/test-writer.md",
+    ".claude/cc-rig-init.log",
     ".claude/cc-rig-state.json",
     ".claude/commands/assumptions.md",
     ".claude/commands/cc-rig.md",
+    ".claude/commands/continue.md",
     ".claude/commands/fix-issue.md",
     ".claude/commands/learn.md",
+    ".claude/commands/new-terminal.md",
     ".claude/commands/plan.md",
     ".claude/commands/refactor.md",
     ".claude/commands/remember.md",
@@ -36,6 +39,7 @@
     ".claude/rules/tests.md",
     ".claude/settings.json",
     ".claude/settings.local.json",
+    ".claude/skills/endsession/SKILL.md",
     ".claude/skills/finishing-a-development-branch/SKILL.md",
     ".claude/skills/frontend-design/SKILL.md",
     ".claude/skills/github-actions-generator/SKILL.md",
@@ -75,6 +79,7 @@
     ".claude/skills/web-design-guidelines/SKILL.md",
     ".claude/skills/webapp-testing/SKILL.md",
     ".github/workflows/claude.yml",
+    ".gitignore",
     ".mcp.json",
     "CLAUDE.local.md",
     "CLAUDE.md",
@@ -448,6 +453,26 @@
     },
     ".github/workflows/claude.yml": {
       "pre_existed": false,
+      "backed_up": false
+    },
+    ".gitignore": {
+      "pre_existed": true,
+      "backed_up": false
+    },
+    ".claude/cc-rig-init.log": {
+      "pre_existed": true,
+      "backed_up": false
+    },
+    ".claude/skills/endsession/SKILL.md": {
+      "pre_existed": true,
+      "backed_up": false
+    },
+    ".claude/commands/continue.md": {
+      "pre_existed": true,
+      "backed_up": false
+    },
+    ".claude/commands/new-terminal.md": {
+      "pre_existed": true,
       "backed_up": false
     }
   }

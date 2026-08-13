@@ -1,5 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "attribution": {
+    "commit": "cc-rig"
+  },
   "permissions": {
     "allow": [
       "Read",
@@ -36,64 +39,54 @@
   "hooks": {
     "PostToolUse": [
       {
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
             "command": "bash .claude/hooks/format.sh"
           }
-        ],
-        "matcher": "Write|Edit"
+        ]
       }
     ],
     "PreToolUse": [
       {
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
             "command": "bash .claude/hooks/lint.sh",
             "if": "Bash(git commit*)"
           }
-        ],
-        "matcher": "Bash"
+        ]
       },
       {
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
             "command": "bash .claude/hooks/typecheck.sh",
             "if": "Bash(git commit*)"
           }
-        ],
-        "matcher": "Bash"
+        ]
       },
       {
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
             "command": "bash .claude/hooks/block-rm-rf.sh",
             "if": "Bash(rm *)"
           }
-        ],
-        "matcher": "Bash"
+        ]
       },
       {
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
             "command": "bash .claude/hooks/block-env.sh"
           }
-        ],
-        "matcher": "Write|Edit"
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/block-main.sh",
-            "if": "Bash(git push*)"
-          }
-        ],
-        "matcher": "Bash"
+        ]
       }
     ],
     "SessionStart": [
@@ -127,6 +120,11 @@
       }
     ]
   },
+  "worktree": {
+    "symlinkDirectories": [
+      "node_modules"
+    ]
+  },
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
     "github@claude-plugins-official": true,
@@ -138,13 +136,5 @@
     "code-review@claude-plugins-official": true
   },
   "effortLevel": "medium",
-  "attribution": {
-    "commit": "cc-rig"
-  },
-  "autoMemoryEnabled": true,
-  "worktree": {
-    "symlinkDirectories": [
-      "node_modules"
-    ]
-  }
+  "autoMemoryEnabled": true
 }

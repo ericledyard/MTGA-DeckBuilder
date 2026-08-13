@@ -8,7 +8,7 @@ INPUT=$(cat 2>/dev/null || echo "")
 
 # Only run on git commit commands
 if echo "$INPUT" | grep -q "git commit"; then
-  OUTPUT=$(npm run lint 2>&1) && exit 0
+  OUTPUT=$(pnpm lint 2>&1) && exit 0
   RC=$?
   LINES=$(echo "$OUTPUT" | wc -l)
   if [ "$LINES" -gt 20 ]; then

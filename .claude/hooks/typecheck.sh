@@ -8,7 +8,9 @@ INPUT=$(cat 2>/dev/null || echo "")
 
 # Only run on git commit commands
 if echo "$INPUT" | grep -q "git commit"; then
-  OUTPUT=$(npx tsc --noEmit 2>&1) && exit 0
+  # pnpm/turbo monorepo: no root tsconfig.json, so a bare `npx tsc --noEmit`
+  # prints its help banner and exits 0 (fail-open). Delegate to turbo instead.
+  OUTPUT=$(pnpm typecheck 2>&1) && exit 0
   RC=$?
   LINES=$(echo "$OUTPUT" | wc -l)
   if [ "$LINES" -gt 20 ]; then
