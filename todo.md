@@ -1,7 +1,9 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-06-10 (session 15)_
-_Branch: main (all session 15 work merged — PR #52)_
+_Last updated: 2026-08-13 (session 17)_
+_Branch: main (pushed directly — no PRs since session 15)_
+_Card data: synced 2026-08-13 · 116,622 printings · browsable pool 33,084_
+_Sync schedule: GitHub Actions daily 06:20 UTC (not Vercel — Hobby caps at 60s)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
@@ -85,12 +87,14 @@ New: `pnpm sync:cards`, `pnpm sync:cards:dry` (`--dry-run` / `--limit=N`),
       cards_playable refreshed.** That runtime is why Vercel Hobby's 60s cap
       could never work. Repo secrets `SUPABASE_URL` and
       `SUPABASE_SERVICE_ROLE_KEY` are set.
-- [ ] Optional: remove the now-dead `crons` block from `apps/web/vercel.json`
-      and the sync route, or keep the route for manual POST triggers. It cannot
-      complete on Hobby either way.
-- [ ] Note: the service role key now lives in GitHub repo secrets as well as
-      `apps/web/.env.local`. It bypasses RLS entirely — rotate in Supabase if
-      that spread is not wanted.
+- [x] Removed the dead Vercel cron — `apps/web/vercel.json` held nothing but
+      that job, so the file is gone (Vercel now reports zero cron definitions).
+      Also deleted the route's `GET` handler: it ran a full sync with **no
+      authentication**, and the cron was its only caller. Verified live —
+      `GET → 405`, `POST` without a token → `401`. Manual POST with SYNC_SECRET
+      still works but cannot finish inside Hobby's 60s cap.
+- [x] Service role key now also lives in GitHub repo secrets. Eric reviewed and
+      **declined rotation for now** (2026-08-13) — do not re-raise unprompted.
 
 ### ✅ `search_cards` scanned the whole catalogue (FIXED — migration 018)
 
