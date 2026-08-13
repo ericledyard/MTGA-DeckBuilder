@@ -9,6 +9,7 @@
     "clean": "turbo run clean",
     "sync:cards": "tsx --env-file=apps/web/.env.local scripts/sync-scryfall.ts",
     "sync:cards:dry": "tsx --env-file=apps/web/.env.local scripts/sync-scryfall.ts --dry-run --limit=2000",
+    "sync:cards:ci": "tsx scripts/sync-scryfall.ts",
     "refresh:view": "tsx --env-file=apps/web/.env.local scripts/refresh-view.ts"
   },
   "devDependencies": {

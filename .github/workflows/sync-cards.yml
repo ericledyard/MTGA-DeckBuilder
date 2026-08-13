@@ -1,0 +1,58 @@
+name: Sync Scryfall Cards
+
+# Replaces the Vercel cron, which cannot work on this project: Vercel Hobby caps
+# function duration at 60s regardless of `maxDuration = 300` in the sync route,
+# and a full Scryfall sync (~78MB gzipped, 116k cards, 425k legality rows) takes
+# several minutes. GitHub Actions has no such cap.
+#
+# Requires two repository secrets:
+#   SUPABASE_URL                — https://<project-ref>.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY   — service role key (bypasses RLS; never expose
+#                                 this to the browser)
+
+on:
+  schedule:
+    # 06:20 UTC daily. Scryfall rebuilds its bulk files around 09:00 UTC, but a
+    # few hours of lag is fine and off-peak times are less contended on Actions.
+    - cron: "20 6 * * *"
+  workflow_dispatch: # allows a manual run from the Actions tab
+
+# A sync takes minutes; never let a scheduled run overlap a manual one.
+concurrency:
+  group: sync-cards
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        # pnpm is pinned by `packageManager` in package.json; corepack honours it
+        # so CI cannot silently drift to a different pnpm.
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync cards from Scryfall
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        # sync:cards:ci reads plain env vars; the local `sync:cards` loads
+        # apps/web/.env.local, which does not exist in CI.
+        #
+        # This also refreshes the cards_playable materialized view at the end.
+        # Without that the browser keeps serving the previous sync's catalogue.
+        run: pnpm sync:cards:ci
