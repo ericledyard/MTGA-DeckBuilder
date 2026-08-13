@@ -27,7 +27,11 @@ export const DEFAULT_FILTERS: CardFilters = {
   types: [],
   setCodes: [],
   format: "",
-  arenaOnly: false,
+  // The card browser opens Arena-only: this is an MTGA deck builder, so that is
+  // the pool most sessions want. It is a default, not a restriction — the chip
+  // above the grid clears it, and the URL carries `arena=0` when cleared so the
+  // choice survives sharing and the back button.
+  arenaOnly: true,
 };
 
 interface SetOption {

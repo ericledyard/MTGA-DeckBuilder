@@ -253,6 +253,12 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const [colors, setColors] = useState<string[]>([]);
   const [arenaOnly, setArenaOnly] = useState(false);
   const [ownedOnly, setOwnedOnly] = useState(false);
+  // Defaults to the deck's own format so the browser opens on cards that are
+  // actually legal in what you're building. Deliberately the deck's format
+  // rather than an Arena-only default: PR #43 turned the Arena filter off here
+  // on purpose, and an Arena default would hide the paper cards in a Commander
+  // deck. Clearable via the chip next to the search box.
+  const [formatFilter, setFormatFilter] = useState<string>(deck.format ?? "");
   const [cmcValues, setCmcValues] = useState<number[]>([]);
   const [rarities, setRarities] = useState<string[]>([]);
   const [filterTypes, setFilterTypes] = useState<string[]>([]);
@@ -309,6 +315,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     colors,
     arenaOnly,
     ownedOnly,
+    formatFilter,
     cmcValues,
     rarities,
     filterTypes,
@@ -348,6 +355,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     if (colors.length) params.set("colors", colors.join(","));
     if (arenaOnly) params.set("arena", "1");
     if (ownedOnly) params.set("owned_only", "1");
+    if (formatFilter) params.set("format", formatFilter);
     if (cmcValues.length) params.set("cmc", cmcValues.join(","));
     if (rarities.length) params.set("rarities", rarities.join(","));
     if (filterTypes.length) params.set("types", filterTypes.join(","));
@@ -389,6 +397,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     colors,
     arenaOnly,
     ownedOnly,
+    formatFilter,
     cmcValues,
     rarities,
     filterTypes,
@@ -778,6 +787,21 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                     />
                   </svg>
                 </div>
+
+                {/* Format chip — defaults to the deck's format, clearable */}
+                {formatFilter && (
+                  <button
+                    onClick={() => setFormatFilter("")}
+                    aria-label={`Showing only ${formatFilter}-legal cards. Click to show all cards.`}
+                    title="Showing cards legal in this deck's format. Click to show all."
+                    className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border border-amber-500/60 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 transition-colors capitalize"
+                  >
+                    {formatFilter} legal
+                    <span aria-hidden="true" className="text-amber-400/80">
+                      ✕
+                    </span>
+                  </button>
+                )}
 
                 <span className="text-xs text-gray-600 shrink-0">
                   {loading ? "…" : `${searchResults.length}`}

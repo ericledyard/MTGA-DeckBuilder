@@ -32,8 +32,8 @@ function parseFilters(
     textQuery: searchParams.get("text") ?? DEFAULT_FILTERS.textQuery,
     format: (searchParams.get("format") ??
       DEFAULT_FILTERS.format) as CardFilters["format"],
-    // absent = default false; "1" = explicitly on
-    arenaOnly: searchParams.get("arena") === "1",
+    // absent = default ON (see DEFAULT_FILTERS); "0" = explicitly cleared
+    arenaOnly: searchParams.get("arena") !== "0",
     colors: searchParams.get("colors")?.split(",").filter(Boolean) ?? [],
     cmcValues:
       searchParams
@@ -52,7 +52,8 @@ function filtersToParams(filters: CardFilters): URLSearchParams {
   if (filters.query) params.set("q", filters.query);
   if (filters.textQuery) params.set("text", filters.textQuery);
   if (filters.format) params.set("format", filters.format);
-  if (filters.arenaOnly) params.set("arena", "1");
+  // Only the non-default needs to appear in the URL.
+  if (!filters.arenaOnly) params.set("arena", "0");
   if (filters.colors.length) params.set("colors", filters.colors.join(","));
   if (filters.cmcValues.length) params.set("cmc", filters.cmcValues.join(","));
   if (filters.rarities.length)
@@ -131,6 +132,28 @@ function CardsPageContent() {
       </div>
 
       <CardSearchFilters filters={filters} onChange={handleFiltersChange} />
+
+      {/* Arena chip — on by default, clearable. Shown here rather than only
+          inside the collapsed Filters panel so it is never a hidden reason for
+          a card being missing from results. */}
+      {filters.arenaOnly && (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleFiltersChange({ arenaOnly: false })}
+            aria-label="Showing only cards available on Arena. Click to show all cards."
+            title="Showing only cards on Arena. Click to include paper-only cards."
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border border-amber-500/60 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 transition-colors"
+          >
+            Arena only
+            <span aria-hidden="true" className="text-amber-400/80">
+              ✕
+            </span>
+          </button>
+          <span className="text-[11px] text-gray-500">
+            Clear to include paper-only cards
+          </span>
+        </div>
+      )}
 
       {/* A failed search is not an empty catalogue — show the error and a way
           to retry instead of the grid's "No cards found" empty state. */}
