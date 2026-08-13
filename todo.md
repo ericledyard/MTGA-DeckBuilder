@@ -61,7 +61,60 @@ Done:
 Verified in production after deploy: first request 25s but **succeeded** where
 it previously 500'd; subsequent requests ~0.8–1.6s.
 
-### 🔴 `search_cards` scans the whole catalogue on every search (ROOT CAUSE, OPEN)
+### ✅ Scryfall sync broken since 2026-06-05 (FIXED — the real cause of "hob" showing 15 cards)
+
+Two independent bugs, either alone producing a silent no-op:
+
+1. Scryfall replaced `download_uri` (JSON array) with `jsonl_download_uri`
+   (gzipped JSONL). Reading the old field passed `undefined` to `fetch()`.
+2. The card upsert included `set_type`, which does not exist on `cards`
+   (migration 007 never applied). PostgREST rejects the whole batch on an
+   unknown column and the error was only `console.error`'d — a run would print
+   "Done. 114546 cards synced" having written nothing.
+
+Fixed, and a full sync run: **116,622 cards / 424,886 legality rows, 0 errors**.
+The Hobbit went 15 → 193 cards; Marvel Super Heroes 133 → 281. All 10 decks
+verified intact, zero orphaned cards.
+
+New: `pnpm sync:cards`, `pnpm sync:cards:dry` (`--dry-run` / `--limit=N`),
+`pnpm refresh:view`. All load `apps/web/.env.local`.
+
+- [ ] **Cron still does not work.** Vercel Hobby caps functions at 60s
+      regardless of `maxDuration = 300`; a full sync cannot finish there.
+      Run `pnpm sync:cards` locally for now. Recommended fix: GitHub Actions
+      on a schedule (free, no time cap, secrets available).
+
+### ✅ `search_cards` scanned the whole catalogue (FIXED — migration 018)
+
+`cards_playable` materialized view: one row per card, 33,084 rows / 37MB,
+refreshed at the end of each sync (`refresh_cards_playable()`, service_role only).
+
+Measured: default browse **215ms warm / 11.3s cold → 10.7ms**; set filter 5.9ms;
+name search 27.8ms. In production, ~143ms end-to-end (was 8–25s).
+
+The view owns the playable-pool definition — excludes non-card set types and
+non-deck card types; keeps Alchemy rebalances and unreleased previews. Default
+sort is newest-set-first. First page went from a blank placeholder land plus
+nine World Championship advertisements to real cards from the newest set.
+
+Gotchas found and handled (see memory/gotchas.md): set filtering must use the
+`set_codes[]` overlap, not the chosen printing's `set_code`; `ORDER BY CASE` is
+not indexable; `ALTER FUNCTION ... SET statement_timeout` does not affect an
+already-started statement; search responses needed `max-age=0` or browsers keep
+serving the pre-sync catalogue.
+
+### 🔲 Default filter chip (NEXT — decided, not built)
+
+Agreed design: the deck editor defaults to the deck's own format
+(`[ Commander legal ✕ ]`), `/cards` defaults to `[ Arena ✕ ]`, both clearable.
+Unreleased sets always pass the filter so previews stay visible — `search_cards`
+already implements that carve-out via `released_at > CURRENT_DATE`.
+
+Note this partly reverses PR #43 (arena filter off by default in the deck
+editor); using the deck's format rather than Arena is what keeps non-Arena
+Commander cards visible.
+
+### 🔲 Old note — kept for context
 
 The retry above makes the timeout survivable, not impossible — a 25s first load
 is still bad. The structural problem:
