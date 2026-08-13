@@ -79,10 +79,18 @@ verified intact, zero orphaned cards.
 New: `pnpm sync:cards`, `pnpm sync:cards:dry` (`--dry-run` / `--limit=N`),
 `pnpm refresh:view`. All load `apps/web/.env.local`.
 
-- [ ] **Cron still does not work.** Vercel Hobby caps functions at 60s
-      regardless of `maxDuration = 300`; a full sync cannot finish there.
-      Run `pnpm sync:cards` locally for now. Recommended fix: GitHub Actions
-      on a schedule (free, no time cap, secrets available).
+- [x] **Scheduling moved to GitHub Actions** (`.github/workflows/sync-cards.yml`).
+      Daily 06:20 UTC + manual `workflow_dispatch`. Verified with a real run:
+      **7m16s, success, 116,622 cards + 424,886 legality rows written and
+      cards_playable refreshed.** That runtime is why Vercel Hobby's 60s cap
+      could never work. Repo secrets `SUPABASE_URL` and
+      `SUPABASE_SERVICE_ROLE_KEY` are set.
+- [ ] Optional: remove the now-dead `crons` block from `apps/web/vercel.json`
+      and the sync route, or keep the route for manual POST triggers. It cannot
+      complete on Hobby either way.
+- [ ] Note: the service role key now lives in GitHub repo secrets as well as
+      `apps/web/.env.local`. It bypasses RLS entirely — rotate in Supabase if
+      that spread is not wanted.
 
 ### ✅ `search_cards` scanned the whole catalogue (FIXED — migration 018)
 
@@ -103,16 +111,19 @@ not indexable; `ALTER FUNCTION ... SET statement_timeout` does not affect an
 already-started statement; search responses needed `max-age=0` or browsers keep
 serving the pre-sync catalogue.
 
-### 🔲 Default filter chip (NEXT — decided, not built)
+### ✅ Default filter chips (DONE)
 
-Agreed design: the deck editor defaults to the deck's own format
-(`[ Commander legal ✕ ]`), `/cards` defaults to `[ Arena ✕ ]`, both clearable.
-Unreleased sets always pass the filter so previews stay visible — `search_cards`
-already implements that carve-out via `released_at > CURRENT_DATE`.
+Deck editor defaults to the deck's own format (`commander legal`); `/cards`
+defaults to `Arena only`. Both render **above** the grid rather than inside the
+collapsed Filters panel, so an active filter is never a hidden reason a card is
+missing. Cleared Arena state is carried as `arena=0` in the URL so it survives
+sharing and back navigation; the default stays out of the URL.
 
-Note this partly reverses PR #43 (arena filter off by default in the deck
-editor); using the deck's format rather than Arena is what keeps non-Arena
-Commander cards visible.
+Using the deck's format rather than Arena in the editor is what preserves PR
+#43's intent — an Arena default would hide the paper cards in a Commander deck.
+
+Unreleased sets pass any format filter via migration 018's
+`released_at > CURRENT_DATE` carve-out, so previews stay visible.
 
 ### 🔲 Old note — kept for context
 
