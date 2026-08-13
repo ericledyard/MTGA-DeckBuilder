@@ -27,6 +27,14 @@ export async function GET(req: NextRequest) {
   const types = searchParams.get("types")?.split(",").filter(Boolean) ?? null;
   const setCodes = searchParams.get("sets")?.split(",").filter(Boolean) ?? null;
 
+  // Default browse order is newest sets first. Sorting by (cmc, name) put a
+  // blank placeholder land and nine World Championship advertisements on page
+  // one; newest-first opens on the cards people are actually brewing with.
+  // Whitelisted here so an unknown value can't reach the SQL sort branch.
+  const SORTS = new Set(["released", "cmc", "name"]);
+  const sortParam = searchParams.get("sort") ?? "released";
+  const sort = SORTS.has(sortParam) ? sortParam : "released";
+
   // Resolve the user only when the owned-only filter is requested
   let userId: string | undefined;
   if (ownedOnly) {
@@ -39,27 +47,33 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServiceClient();
 
-  // search_cards de-duplicates across all 114k printings before paging, so a
-  // cold cache can push it past the statement timeout even though it runs in
-  // ~200ms warm. Retrying absorbs that; see lib/rpcRetry.
+  // Migration 018 raised statement_timeout on service_role to 5 minutes so the
+  // sync can refresh cards_playable. That ceiling must not apply to user-facing
+  // search: an 8s abort keeps a pathological query failing fast here rather than
+  // hanging until Vercel's own function timeout.
+  const SEARCH_TIMEOUT_MS = 8000;
+
   let data: unknown;
   try {
     data = await rpcWithRetry<unknown>("search_cards", () =>
-      supabase.rpc("search_cards", {
-        p_query: q,
-        p_text_query: textQuery,
-        p_format: format,
-        p_arena_only: arenaOnly,
-        p_limit: limit,
-        p_offset: offset,
-        p_colors: colors?.length ? colors : undefined,
-        p_cmc_values: cmcValues?.length ? cmcValues : undefined,
-        p_rarities: rarities?.length ? rarities : undefined,
-        p_types: types?.length ? types : undefined,
-        p_set_codes: setCodes?.length ? setCodes : undefined,
-        p_owned_only: ownedOnly && !!userId,
-        p_user_id: userId,
-      }),
+      supabase
+        .rpc("search_cards", {
+          p_query: q,
+          p_text_query: textQuery,
+          p_format: format,
+          p_arena_only: arenaOnly,
+          p_limit: limit,
+          p_offset: offset,
+          p_colors: colors?.length ? colors : undefined,
+          p_cmc_values: cmcValues?.length ? cmcValues : undefined,
+          p_rarities: rarities?.length ? rarities : undefined,
+          p_types: types?.length ? types : undefined,
+          p_set_codes: setCodes?.length ? setCodes : undefined,
+          p_owned_only: ownedOnly && !!userId,
+          p_user_id: userId,
+          p_sort: sort,
+        })
+        .abortSignal(AbortSignal.timeout(SEARCH_TIMEOUT_MS)),
     );
   } catch (err) {
     console.error("cards/search failed:", err);
@@ -72,9 +86,13 @@ export async function GET(req: NextRequest) {
   const isUserSpecific = ownedOnly && !!userId;
   const response = NextResponse.json(data ?? []);
   if (!isUserSpecific) {
+    // max-age=0 makes browsers revalidate while the CDN still serves from cache
+    // for an hour. Without it there is no browser directive at all, so browsers
+    // cache heuristically and keep showing the previous catalogue after a sync —
+    // observed serving pre-sync results until a hard reload.
     response.headers.set(
       "Cache-Control",
-      "public, s-maxage=3600, stale-while-revalidate=86400",
+      "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
     );
   }
   return response;

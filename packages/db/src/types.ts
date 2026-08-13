@@ -234,6 +234,13 @@ export type Database = {
             referencedRelation: "cards"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "decks_cover_card_id_fkey"
+            columns: ["cover_card_id"]
+            isOneToOne: false
+            referencedRelation: "cards_playable"
+            referencedColumns: ["id"]
+          },
         ]
       }
       format_banlists: {
@@ -358,7 +365,38 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      cards_playable: {
+        Row: {
+          available_on_arena: boolean | null
+          cmc: number | null
+          collector_number: string | null
+          color_identity: string[] | null
+          colors: string[] | null
+          id: string | null
+          image_uri_art_crop: string | null
+          image_uri_normal: string | null
+          is_alchemy: boolean | null
+          mana_cost: string | null
+          name: string | null
+          oracle_id: string | null
+          oracle_text: string | null
+          rarity: Database["public"]["Enums"]["card_rarity"] | null
+          released_at: string | null
+          set_code: string | null
+          set_codes: string[] | null
+          set_name: string | null
+          type_line: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cards_set_code_fkey"
+            columns: ["set_code"]
+            isOneToOne: false
+            referencedRelation: "sets"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
     }
     Functions: {
       get_cards_by_oracle_ids: {
@@ -449,6 +487,7 @@ export type Database = {
           type_line: string
         }[]
       }
+      refresh_cards_playable: { Args: never; Returns: undefined }
       remove_collection_card: {
         Args: { p_oracle_id: string; p_user_id: string }
         Returns: undefined
@@ -465,6 +504,7 @@ export type Database = {
           p_query?: string
           p_rarities?: string[]
           p_set_codes?: string[]
+          p_sort?: string
           p_text_query?: string
           p_types?: string[]
           p_user_id?: string

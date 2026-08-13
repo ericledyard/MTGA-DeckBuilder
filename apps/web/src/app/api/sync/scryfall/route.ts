@@ -219,6 +219,15 @@ async function runSync(): Promise<{ cards: number; legalities: number }> {
 
   await flushCards();
   await flushLegalities();
+
+  // cards_playable is a materialized view; without this the browser keeps
+  // serving the previous sync's catalogue. CONCURRENTLY keeps it readable
+  // during the rebuild.
+  const { error: refreshError } = await supabase.rpc("refresh_cards_playable");
+  if (refreshError) {
+    console.error("cards_playable refresh failed:", refreshError.message);
+  }
+
   await unlink(tmpFile);
 
   return { cards: cardCount, legalities: legalityCount };

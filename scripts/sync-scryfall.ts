@@ -286,6 +286,19 @@ async function syncCards(downloadUri: string) {
   await flushCards();
   await flushLegalities();
 
+  // cards_playable is a materialized view — it does not see the rows above until
+  // refreshed, so the browser would keep serving the previous sync's catalogue.
+  // CONCURRENTLY keeps it readable while the rebuild runs. Skipped on a partial
+  // run, where refreshing would publish a half-synced catalogue.
+  if (!DRY_RUN && LIMIT === Infinity) {
+    console.log("Refreshing cards_playable…");
+    const { error } = await supabase.rpc("refresh_cards_playable");
+    if (error) console.error("cards_playable refresh failed:", error.message);
+    else console.log("cards_playable refreshed.");
+  } else if (LIMIT !== Infinity) {
+    console.log("Skipping cards_playable refresh (partial run).");
+  }
+
   await unlink(tmpFile);
   console.log(
     DRY_RUN
