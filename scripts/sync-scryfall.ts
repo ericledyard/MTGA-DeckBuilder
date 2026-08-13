@@ -95,6 +95,14 @@ interface ScryfallCard {
   updated_at?: string;
 }
 
+interface SetRow {
+  code: string;
+  name: string;
+  set_type: string;
+  released_at: string | null;
+  available_on_arena: boolean;
+}
+
 async function fetchBulkIndex(): Promise<BulkDataEntry[]> {
   const res = await fetch(SCRYFALL_BULK_INDEX, {
     headers: {
@@ -160,17 +168,27 @@ async function syncCards(downloadUri: string) {
   console.log("Download complete. Processing cards…");
 
   // Pass 1: collect unique sets (small — ~1000 entries)
-  const setsMap = new Map<string, object>();
+  //
+  // available_on_arena is an OR across every card in the set, not a read of
+  // whichever printing streamed first. Scryfall orders the bulk file by
+  // collector number, so the first card is usually a paper-only showcase or
+  // borderless treatment: The Hobbit was recorded as not on Arena while 241 of
+  // its 321 cards were.
+  const setsMap = new Map<string, SetRow>();
   for await (const card of streamCards(tmpFile)) {
-    if (!setsMap.has(card.set)) {
-      setsMap.set(card.set, {
-        code: card.set,
-        name: card.set_name,
-        set_type: card.set_type,
-        released_at: card.released_at ?? null,
-        available_on_arena: card.games.includes("arena"),
-      });
+    const onArena = card.games.includes("arena");
+    const existing = setsMap.get(card.set);
+    if (existing) {
+      existing.available_on_arena ||= onArena;
+      continue;
     }
+    setsMap.set(card.set, {
+      code: card.set,
+      name: card.set_name,
+      set_type: card.set_type,
+      released_at: card.released_at ?? null,
+      available_on_arena: onArena,
+    });
   }
   const setRows = [...setsMap.values()];
   if (DRY_RUN) {
