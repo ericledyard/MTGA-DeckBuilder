@@ -137,8 +137,11 @@ export function CardSearchFilters({ filters, onChange }: Props) {
 
   useEffect(() => {
     fetch("/api/cards/sets")
-      .then((r) => r.json())
-      .then(setSets)
+      .then((r) => (r.ok ? r.json() : []))
+      // The route returns { error } on failure, and `sets` is rendered with
+      // .filter() — assigning a non-array here crashes the whole page instead
+      // of degrading to an empty expansion picker.
+      .then((data) => setSets(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
 

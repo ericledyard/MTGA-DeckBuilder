@@ -96,8 +96,17 @@ function CardsPageContent() {
     setError(null);
     try {
       const r = await fetch(`/api/cards/search?${apiParams}`);
-      if (!r.ok) throw new Error(r.statusText);
-      setCards(await r.json());
+      if (!r.ok) {
+        // Prefer the route's own message over statusText ("Service Unavailable"
+        // tells the user nothing about what failed).
+        const detail = await r
+          .json()
+          .then((b) => (typeof b?.error === "string" ? b.error : null))
+          .catch(() => null);
+        throw new Error(detail ?? "Card search failed. Please try again.");
+      }
+      const data = await r.json();
+      setCards(Array.isArray(data) ? data : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Search failed");
     } finally {
@@ -123,23 +132,34 @@ function CardsPageContent() {
 
       <CardSearchFilters filters={filters} onChange={handleFiltersChange} />
 
-      {error && (
-        <p className="text-red-400 text-sm" role="alert">
-          {error}
-        </p>
+      {/* A failed search is not an empty catalogue — show the error and a way
+          to retry instead of the grid's "No cards found" empty state. */}
+      {error ? (
+        <div
+          role="alert"
+          className="flex flex-col items-center justify-center gap-3 py-20 text-center"
+        >
+          <p className="text-red-400 text-sm">{error}</p>
+          <button
+            onClick={() => search()}
+            className="px-3 py-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-gray-900 rounded-md transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <CardGrid
+          cards={cards}
+          loading={loading}
+          backHref={(() => {
+            const params = filtersToParams(filters);
+            if (page > 0) params.set("page", String(page));
+            return `/cards?${params}`;
+          })()}
+        />
       )}
 
-      <CardGrid
-        cards={cards}
-        loading={loading}
-        backHref={(() => {
-          const params = filtersToParams(filters);
-          if (page > 0) params.set("page", String(page));
-          return `/cards?${params}`;
-        })()}
-      />
-
-      {!loading && (cards.length > 0 || page > 0) && (
+      {!error && !loading && (cards.length > 0 || page > 0) && (
         <div className="flex items-center justify-between pt-2 pb-6">
           <button
             type="button"

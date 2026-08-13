@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { chunk, rpcWithRetry } from "@/lib/rpcRetry";
 
 // Accepts either:
 //   { items: [{name, setCode?, collectorNumber?}] }  — structured (preferred)
@@ -31,47 +32,6 @@ const NAME_BATCH_SIZE = 60;
 // names can't turn into a huge fuzzy sweep.
 const FUZZY_BATCH_SIZE = 25;
 const FUZZY_MAX_NAMES = 100;
-
-const RETRY_DELAYS_MS = [250, 750, 1500];
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/**
- * Runs an RPC, retrying transient database failures with backoff.
- *
- * Supabase pauses idle projects, so the first query after a quiet period can be
- * cancelled by the statement timeout even when the query itself is fast. Those
- * failures succeed on a second attempt, so retrying here keeps a cold start from
- * surfacing as a user-visible error.
- */
-async function rpcWithRetry<T>(
-  label: string,
-  // Supabase's rpc() returns a thenable query builder, not a real Promise.
-  run: () => PromiseLike<{ data: unknown; error: { message: string } | null }>,
-): Promise<T> {
-  let lastError = "unknown error";
-
-  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
-    if (attempt > 0) await sleep(RETRY_DELAYS_MS[attempt - 1]);
-
-    const { data, error } = await run();
-    if (!error) return (data ?? []) as T;
-
-    lastError = error.message;
-    console.error(
-      `${label} failed (attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}):`,
-      error.message,
-    );
-  }
-
-  throw new Error(`${label}: ${lastError}`);
-}
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));

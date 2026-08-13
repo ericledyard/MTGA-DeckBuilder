@@ -240,6 +240,9 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   );
   const [searchResults, setSearchResults] = useState<SearchCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  // Bumped to force the search effect to re-run when the user hits Retry.
+  const [searchRetry, setSearchRetry] = useState(0);
   const [searchPage, setSearchPage] = useState(0);
   const [query, setQuery] = useState("");
   const [textQuery, setTextQuery] = useState("");
@@ -323,9 +326,11 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     setPrevSearchPage(0);
     setSearchPage(0);
     setLoading(true);
+    setSearchError(null);
   } else if (prevSearchPage !== searchPage) {
     setPrevSearchPage(searchPage);
     setLoading(true);
+    setSearchError(null);
   }
 
   // Fetch fires on debounced filter values + page changes
@@ -353,13 +358,30 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     if (allSetCodes.length) params.set("sets", allSetCodes.join(","));
 
     fetch(`/api/cards/search?${params}`, { signal: ctrl.signal })
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) {
+          // A failed search must not render as an empty grid — "No cards found"
+          // is a claim about the catalogue, not about the request.
+          const detail = await r
+            .json()
+            .then((b) => (typeof b?.error === "string" ? b.error : null))
+            .catch(() => null);
+          throw new Error(detail ?? "Card search failed. Please try again.");
+        }
+        return r.json();
+      })
       .then((data) => {
         setSearchResults(Array.isArray(data) ? data : (data.cards ?? []));
         setLoading(false);
       })
       .catch((err) => {
-        if (err?.name !== "AbortError") setLoading(false);
+        if (err?.name === "AbortError") return;
+        setSearchError(
+          err instanceof Error
+            ? err.message
+            : "Card search failed. Please try again.",
+        );
+        setLoading(false);
       });
   }, [
     debouncedQuery,
@@ -373,14 +395,17 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     setCodes,
     debouncedSetCodeQuery,
     searchPage,
+    searchRetry,
   ]);
 
   // Fetch sets lazily the first time the filter panel opens
   useEffect(() => {
     if (!filtersExpanded || sets.length > 0) return;
     fetch("/api/cards/sets")
-      .then((r) => r.json())
-      .then(setSets)
+      .then((r) => (r.ok ? r.json() : []))
+      // Guard the shape: the route returns { error } on failure and `sets` is
+      // rendered with .filter(), so a non-array here crashes the editor.
+      .then((data) => setSets(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, [filtersExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1184,6 +1209,23 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                       className="aspect-[2.5/3.5] rounded-lg bg-gray-800 animate-pulse"
                     />
                   ))}
+                </div>
+              ) : searchError ? (
+                <div
+                  role="alert"
+                  className="flex flex-col items-center justify-center h-full gap-3 text-center px-4"
+                >
+                  <p className="text-sm text-red-400">{searchError}</p>
+                  <button
+                    onClick={() => {
+                      setSearchError(null);
+                      setLoading(true);
+                      setSearchRetry((n) => n + 1);
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-gray-900 rounded-md transition-colors"
+                  >
+                    Retry
+                  </button>
                 </div>
               ) : searchResults.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-gray-600 text-sm">

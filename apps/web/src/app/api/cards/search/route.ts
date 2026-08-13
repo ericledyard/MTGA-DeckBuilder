@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@mtga/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { rpcWithRetry } from "@/lib/rpcRetry";
 
 export const runtime = "nodejs";
 
@@ -38,24 +39,34 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServiceClient();
 
-  const { data, error } = await supabase.rpc("search_cards", {
-    p_query: q,
-    p_text_query: textQuery,
-    p_format: format,
-    p_arena_only: arenaOnly,
-    p_limit: limit,
-    p_offset: offset,
-    p_colors: colors?.length ? colors : undefined,
-    p_cmc_values: cmcValues?.length ? cmcValues : undefined,
-    p_rarities: rarities?.length ? rarities : undefined,
-    p_types: types?.length ? types : undefined,
-    p_set_codes: setCodes?.length ? setCodes : undefined,
-    p_owned_only: ownedOnly && !!userId,
-    p_user_id: userId,
-  });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  // search_cards de-duplicates across all 114k printings before paging, so a
+  // cold cache can push it past the statement timeout even though it runs in
+  // ~200ms warm. Retrying absorbs that; see lib/rpcRetry.
+  let data: unknown;
+  try {
+    data = await rpcWithRetry<unknown>("search_cards", () =>
+      supabase.rpc("search_cards", {
+        p_query: q,
+        p_text_query: textQuery,
+        p_format: format,
+        p_arena_only: arenaOnly,
+        p_limit: limit,
+        p_offset: offset,
+        p_colors: colors?.length ? colors : undefined,
+        p_cmc_values: cmcValues?.length ? cmcValues : undefined,
+        p_rarities: rarities?.length ? rarities : undefined,
+        p_types: types?.length ? types : undefined,
+        p_set_codes: setCodes?.length ? setCodes : undefined,
+        p_owned_only: ownedOnly && !!userId,
+        p_user_id: userId,
+      }),
+    );
+  } catch (err) {
+    console.error("cards/search failed:", err);
+    return NextResponse.json(
+      { error: "Card search failed. Please try again." },
+      { status: 503 },
+    );
   }
 
   const isUserSpecific = ownedOnly && !!userId;
