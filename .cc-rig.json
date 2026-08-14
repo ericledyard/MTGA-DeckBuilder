@@ -5,13 +5,13 @@
   "language": "typescript",
   "framework": "nextjs",
   "project_type": "web_fullstack",
-  "test_cmd": "",
+  "test_cmd": "pnpm test",
   "lint_cmd": "pnpm lint",
   "format_cmd": "npx prettier --write",
   "typecheck_cmd": "pnpm typecheck",
   "build_cmd": "pnpm build",
   "source_dir": "apps/web/src",
-  "test_dir": "",
+  "test_dir": "packages/core/src",
   "workflow": "standard",
   "agents": [
     "code-reviewer",
@@ -222,9 +222,7 @@
       "replaces_mcp": ""
     }
   ],
-  "default_mcps": [
-    "playwright"
-  ],
+  "default_mcps": ["playwright"],
   "skill_packs": [],
   "claude_plan": "pro",
   "model_overrides": {
