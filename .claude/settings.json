@@ -16,10 +16,7 @@
       "WebFetch",
       "Task"
     ],
-    "deny": [
-      "Bash(rm -rf /)",
-      "Bash(rm -rf ~)"
-    ],
+    "deny": ["Bash(rm -rf /)", "Bash(rm -rf ~)"],
     "denyRead": [
       "~/.ssh/**",
       "~/.aws/**",
@@ -30,11 +27,7 @@
       "**/credentials*",
       "**/*secret*"
     ],
-    "denyWrite": [
-      "~/.ssh/**",
-      "~/.aws/**",
-      "~/.gnupg/**"
-    ]
+    "denyWrite": ["~/.ssh/**", "~/.aws/**", "~/.gnupg/**"]
   },
   "hooks": {
     "PostToolUse": [
@@ -65,6 +58,16 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/typecheck.sh",
+            "if": "Bash(git commit*)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/test.sh",
             "if": "Bash(git commit*)"
           }
         ]
@@ -121,9 +124,7 @@
     ]
   },
   "worktree": {
-    "symlinkDirectories": [
-      "node_modules"
-    ]
+    "symlinkDirectories": ["node_modules"]
   },
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
