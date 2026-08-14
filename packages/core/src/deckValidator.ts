@@ -148,7 +148,12 @@ export const FORMAT_RULES: Record<Format, FormatRules> = {
   },
 };
 
-// Basic lands that are exempt from copy limits
+/**
+ * Basic land names, used only when a card's type line is unavailable. The type
+ * line is the real test — it catches Snow-Covered basics, Wastes, and anything
+ * printed later — but decks saved before type lines were carried have names
+ * and nothing else.
+ */
 const BASIC_LANDS = new Set([
   "Plains",
   "Island",
@@ -162,6 +167,74 @@ const BASIC_LANDS = new Set([
   "Snow-Covered Mountain",
   "Snow-Covered Forest",
 ]);
+
+const NUMBER_WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
+
+/** "A deck can have any number of cards named Relentless Rats." */
+const ANY_NUMBER_RE = /a deck can have any number of cards named/i;
+
+/** "A deck can have up to nine cards named Nazgûl." */
+const UP_TO_RE = /a deck can have up to (\w+) cards named/i;
+
+function isBasicLand(card: {
+  name: string;
+  typeLine?: string | null;
+}): boolean {
+  if (card.typeLine) {
+    const t = card.typeLine.toLowerCase();
+    return t.includes("basic") && t.includes("land");
+  }
+  return BASIC_LANDS.has(card.name);
+}
+
+/**
+ * How many copies of this card the deck may hold.
+ *
+ * Three rules, in order of precedence:
+ *
+ *  1. Basic lands are unlimited in every format.
+ *  2. A card may grant itself an allowance in its own rules text — either
+ *     unlimited ("any number of cards named Relentless Rats") or a specific
+ *     count ("up to nine cards named Nazgûl"). This overrides singleton: nine
+ *     Nazgûl are legal in Commander.
+ *  3. Otherwise the format's limit — 1 for Commander/Brawl, 4 elsewhere.
+ *
+ * Returns `Infinity` for unlimited. Missing type line or oracle text falls
+ * back to the format limit rather than blocking the card, on the same
+ * principle as `isWithinColorIdentity`: refusing a card because its data has
+ * not loaded is a worse failure than missing one genuinely over the limit.
+ */
+export function maxCopiesForCard(
+  card: { name: string; typeLine?: string | null; oracleText?: string | null },
+  format: Format,
+): number {
+  if (isBasicLand(card)) return Infinity;
+
+  const text = card.oracleText ?? "";
+  if (ANY_NUMBER_RE.test(text)) return Infinity;
+
+  const match = text.match(UP_TO_RE);
+  if (match) {
+    const word = match[1].toLowerCase();
+    const parsed = NUMBER_WORDS[word] ?? Number(word);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+
+  return FORMAT_RULES[format].maxCopies;
+}
 
 export function validateDeckStructure(deck: Deck): ValidationError[] {
   const errors: ValidationError[] = [];
@@ -210,22 +283,35 @@ export function validateDeckStructure(deck: Deck): ValidationError[] {
     });
   }
 
-  // Copy count validation (commander is a separate slot — exclude from copy counts)
-  const allCards = deck.cards.filter((c) => !c.isCompanion && !c.isCommander);
+  // Copy count validation. The commander IS counted: a commander in the
+  // command zone plus a copy in the deck is two copies of one name, which
+  // singleton does not allow.
+  const allCards = deck.cards.filter((c) => !c.isCompanion);
   const countByName = new Map<string, number>();
+  const cardByName = new Map<string, DeckCard>();
   for (const card of allCards) {
     countByName.set(
       card.name,
       (countByName.get(card.name) ?? 0) + card.quantity,
     );
+    if (!cardByName.has(card.name)) cardByName.set(card.name, card);
   }
   for (const [name, count] of countByName) {
-    if (!BASIC_LANDS.has(name) && count > rules.maxCopies) {
+    const sample = cardByName.get(name)!;
+    const limit = maxCopiesForCard(
+      {
+        name,
+        typeLine: sample.typeLine,
+        oracleText: sample.oracleText,
+      },
+      deck.format,
+    );
+    if (count > limit) {
       errors.push({
         type: rules.singleton ? "singleton" : "card_count",
         message: rules.singleton
           ? `${name} appears ${count} times — ${deck.format} is a singleton format`
-          : `${name} appears ${count} times — maximum is ${rules.maxCopies}`,
+          : `${name} appears ${count} times — maximum is ${limit}`,
         cardName: name,
       });
     }
@@ -269,12 +355,13 @@ export function validateCardCopies(
   const rules = FORMAT_RULES[format];
   const errors: ValidationError[] = [];
   for (const card of cards) {
-    if (!BASIC_LANDS.has(card.name) && card.quantity > rules.maxCopies) {
+    const limit = maxCopiesForCard(card, format);
+    if (card.quantity > limit) {
       errors.push({
         type: rules.singleton ? "singleton" : "card_count",
         message: rules.singleton
           ? `${card.name} — ${format} is singleton`
-          : `${card.name}: max ${rules.maxCopies} copies`,
+          : `${card.name}: max ${limit} copies`,
         cardName: card.name,
       });
     }

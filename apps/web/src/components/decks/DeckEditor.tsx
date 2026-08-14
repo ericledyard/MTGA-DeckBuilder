@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   validateDeckStructure,
   canBeCommander,
+  maxCopiesForCard,
   FORMAT_RULES,
 } from "@mtga/core";
 import type { Color, Deck, Format } from "@mtga/core";
@@ -127,6 +128,7 @@ function DeckVisualCard({
   onDecrement,
   onHover,
   onHoverEnd,
+  atLimit,
 }: {
   rowData: CardRowData;
   illegalCards: Set<string>;
@@ -134,6 +136,8 @@ function DeckVisualCard({
   onDecrement: () => void;
   onHover: (card: SearchCard | null) => void;
   onHoverEnd: () => void;
+  /** At the format's copy limit for this card — the + control is disabled. */
+  atLimit?: boolean;
 }) {
   const card = rowData.card;
   if (!card) return null;
@@ -210,8 +214,14 @@ function DeckVisualCard({
               e.stopPropagation();
               onIncrement();
             }}
-            aria-label={`Add ${card.name}`}
-            className="w-6 h-6 rounded-full bg-gray-900/80 border border-gray-600 text-gray-200 text-sm font-bold flex items-center justify-center hover:bg-green-900/80 hover:border-green-500 hover:text-green-300 transition-colors leading-none"
+            disabled={atLimit}
+            aria-label={
+              atLimit
+                ? `${card.name} is at its copy limit for this format`
+                : `Add ${card.name}`
+            }
+            title={atLimit ? "At the copy limit for this format" : undefined}
+            className="w-6 h-6 rounded-full bg-gray-900/80 border border-gray-600 text-gray-200 text-sm font-bold flex items-center justify-center hover:bg-green-900/80 hover:border-green-500 hover:text-green-300 transition-colors leading-none disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-gray-900/80 disabled:hover:border-gray-600 disabled:hover:text-gray-200"
           >
             +
           </button>
@@ -316,6 +326,11 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
   /** Armed by the "Commander +" button: the next card clicked becomes commander. */
   const [pickingCommander, setPickingCommander] = useState(false);
   const [commanderError, setCommanderError] = useState<string | null>(null);
+  /** Explains a refused add — e.g. a second copy in a singleton format. */
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
+  /** Format name as players write it: "Commander", not "commander". */
+  const formatLabel =
+    deck.format.charAt(0).toUpperCase() + deck.format.slice(1);
   const [commanderDropActive, setCommanderDropActive] = useState(false);
   /**
    * Restrict the browser to the commander's colour identity. On by default once
@@ -350,6 +365,15 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
   // Depend on the joined string, not the array: a fresh array every render
   // would restart the search on every keystroke.
   const commanderIdentityKey = commanderIdentity.join(",");
+
+  // Auto-dismiss the copy-limit notice. The timer is set inside the effect
+  // rather than state being written in its body, which `set-state-in-effect`
+  // forbids here.
+  useEffect(() => {
+    if (!limitNotice) return;
+    const t = setTimeout(() => setLimitNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [limitNotice]);
 
   // Escape cancels commander-pick mode. Armed only while picking, so it does
   // not compete with the card-preview overlay's own Escape handling.
@@ -521,6 +545,39 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
       : 0);
   const sideCount = sideboard.reduce((s, c) => s + c.quantity, 0);
 
+  /**
+   * Total copies of a card held anywhere in the deck — mainboard, sideboard,
+   * and the commander slot. Copy limits are a whole-deck rule, so a commander
+   * occupies its name's only slot in a singleton format.
+   */
+  function copiesInDeck(oracleId: string): number {
+    return deckCards
+      .filter((c) => c.oracle_id === oracleId)
+      .reduce((s, c) => s + c.quantity, 0);
+  }
+
+  /** The copy limit for a card in this deck's format. `Infinity` = unlimited. */
+  function limitFor(card: {
+    name: string;
+    type_line?: string | null;
+    oracle_text?: string | null;
+  }): number {
+    return maxCopiesForCard(
+      {
+        name: card.name,
+        typeLine: card.type_line,
+        oracleText: card.oracle_text,
+      },
+      deck.format as Format,
+    );
+  }
+
+  /** True when no further copy of this card may be added. */
+  function isAtLimit(row: CardRowData): boolean {
+    if (!row.card) return false;
+    return copiesInDeck(row.oracle_id) >= limitFor(row.card);
+  }
+
   const deckForValidation: Deck = {
     id: deck.id,
     userId: "",
@@ -541,6 +598,8 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
         isCompanion: c.is_companion,
         isCommander: c.is_commander,
         colorIdentity: c.card?.color_identity as Color[] | undefined,
+        typeLine: c.card?.type_line,
+        oracleText: c.card?.oracle_text,
       })),
   };
   const validationErrors = validateDeckStructure(deckForValidation);
@@ -606,6 +665,21 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
       c.is_commander === isCommander;
 
     const existing = deckCards.find(match);
+
+    // Same copy limit as the search grid — the +/− controls are another way in.
+    if (delta > 0 && existing?.card) {
+      const limit = limitFor(existing.card);
+      if (copiesInDeck(oracleId) >= limit) {
+        setLimitNotice(
+          limit === 1
+            ? `${existing.card.name} — only one copy allowed in ${formatLabel}`
+            : `${existing.card.name} — limit of ${limit} reached`,
+        );
+        return;
+      }
+      setLimitNotice(null);
+    }
+
     const newQty = (existing?.quantity ?? 0) + delta;
 
     if (newQty <= 0) {
@@ -702,6 +776,22 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
       assignCommander(card);
       return;
     }
+
+    // Copy limit. Counts every copy in the deck including the commander slot,
+    // so a commander cannot also be added to the mainboard in a singleton
+    // format. Refusing with a reason beats letting MTGA reject the deck later.
+    const limit = limitFor(card);
+    const held = copiesInDeck(card.oracle_id);
+    if (held >= limit) {
+      setLimitNotice(
+        limit === 1
+          ? `${card.name} — only one copy allowed in ${formatLabel}`
+          : `${card.name} — limit of ${limit} reached`,
+      );
+      return;
+    }
+    setLimitNotice(null);
+
     if (clearedSnapshot) setClearedSnapshot(null);
     const isSideboard = isSideboardOverride ?? activeTab === "sideboard";
     const existing = deckCards.find(
@@ -897,10 +987,16 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
     );
   }
 
-  // Map oracle_id -> quantity in current tab for badge display
-  const deckQtyMap = new Map(
-    visibleCards.map((c) => [c.oracle_id, c.quantity]),
-  );
+  // Map oracle_id -> total quantity anywhere in the deck, for the search-grid
+  // badge. Counts the commander slot too: a commander showed no badge at all
+  // while it sat outside the mainboard, which read as "not in the deck".
+  const deckQtyMap = new Map<string, number>();
+  for (const c of deckCards) {
+    deckQtyMap.set(
+      c.oracle_id,
+      (deckQtyMap.get(c.oracle_id) ?? 0) + c.quantity,
+    );
+  }
 
   return (
     <>
@@ -1333,6 +1429,7 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
                             }
                             onHover={setHoveredCard}
                             onHoverEnd={handleCardMouseLeave}
+                            atLimit={isAtLimit(rowData)}
                           />
                         ))}
                       </div>
@@ -1379,6 +1476,7 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
                               }
                               onHover={setHoveredCard}
                               onHoverEnd={handleCardMouseLeave}
+                              atLimit={isAtLimit(rowData)}
                             />
                           ))}
                         </div>
@@ -1414,6 +1512,7 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
                               }
                               onHover={setHoveredCard}
                               onHoverEnd={handleCardMouseLeave}
+                              atLimit={isAtLimit(rowData)}
                             />
                           ))}
                       </div>
@@ -1460,6 +1559,10 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
                   <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                     {searchResults.map((card) => {
                       const qty = deckQtyMap.get(card.oracle_id) ?? 0;
+                      // Already at the format's limit — still clickable so the
+                      // refusal explains itself, but visibly spent.
+                      const atLimit =
+                        !pickingCommander && qty >= limitFor(card);
                       return (
                         <button
                           key={card.id}
@@ -1471,7 +1574,14 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
                           onDragEnd={handleDragEnd}
                           onMouseEnter={() => handleCardMouseEnter(card)}
                           onMouseLeave={handleCardMouseLeave}
-                          className="group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-grab active:cursor-grabbing"
+                          title={
+                            atLimit
+                              ? `${card.name} is at its copy limit for ${formatLabel}`
+                              : undefined
+                          }
+                          className={`group relative aspect-[2.5/3.5] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-grab active:cursor-grabbing ${
+                            atLimit ? "opacity-50" : ""
+                          }`}
                         >
                           {card.image_uri_normal ? (
                             <img
@@ -1736,6 +1846,7 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
                     key={`${row.oracle_id}-commander`}
                     row={row}
                     onIncrement={() => {}}
+                    atLimit
                     onDecrement={(id) => upsertCard(id, -1, false, true)}
                     onCardClick={(uri, name) =>
                       setPreviewCard({ imageUri: uri, name })
@@ -1753,6 +1864,27 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
                   {commanderError}
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Copy-limit refusal. Sits above the tabs so it is visible whether
+              the add came from the search grid or a +/− control. */}
+          {limitNotice && (
+            <div
+              role="status"
+              className="shrink-0 flex items-start gap-2 px-3 py-2 bg-amber-950/40 border-b border-amber-900/50"
+            >
+              <p className="flex-1 text-[11px] leading-snug text-amber-300">
+                {limitNotice}
+              </p>
+              <button
+                type="button"
+                onClick={() => setLimitNotice(null)}
+                aria-label="Dismiss"
+                className="text-amber-500 hover:text-amber-300 text-xs leading-none"
+              >
+                ✕
+              </button>
             </div>
           )}
 
@@ -1817,6 +1949,7 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
                         isIllegal={
                           !!row.card && illegalCards.has(row.card.name)
                         }
+                        atLimit={isAtLimit(row)}
                       />
                     ))}
                   </div>

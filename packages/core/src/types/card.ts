@@ -12,19 +12,10 @@ export type Format =
   | "pauper";
 
 export type LegalityStatus =
-  | "legal"
-  | "not_legal"
-  | "banned"
-  | "restricted"
-  | "suspended";
+  "legal" | "not_legal" | "banned" | "restricted" | "suspended";
 
 export type Rarity =
-  | "common"
-  | "uncommon"
-  | "rare"
-  | "mythic"
-  | "special"
-  | "bonus";
+  "common" | "uncommon" | "rare" | "mythic" | "special" | "bonus";
 
 export type Color = "W" | "U" | "B" | "R" | "G";
 
@@ -79,6 +70,16 @@ export interface DeckCard {
    * is treated as "unknown", never as "illegal".
    */
   colorIdentity?: Color[];
+  /**
+   * Type line and oracle text, for the copy-limit rules. Basic lands are
+   * exempt from every limit, and a handful of cards carry their own allowance
+   * ("A deck can have any number of cards named Relentless Rats", "up to nine
+   * cards named Nazgûl"). Both optional: an absent value falls back to the
+   * format's plain limit rather than blocking a card whose data has not
+   * loaded, matching how `colorIdentity` treats unknown.
+   */
+  typeLine?: string | null;
+  oracleText?: string | null;
 }
 
 export interface Deck {

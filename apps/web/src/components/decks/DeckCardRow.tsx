@@ -36,6 +36,8 @@ interface DeckCardRowProps {
   onDecrement: (oracleId: string, isSideboard: boolean) => void;
   onCardClick?: (imageUri: string, name: string) => void;
   isIllegal?: boolean;
+  /** At the format's copy limit for this card — the + control is disabled. */
+  atLimit?: boolean;
 }
 
 const RARITY_COLOR: Record<string, string> = {
@@ -51,6 +53,7 @@ export function DeckCardRow({
   onDecrement,
   onCardClick,
   isIllegal,
+  atLimit,
 }: DeckCardRowProps) {
   const name = row.card?.name ?? row.oracle_id;
   const rarityColor = RARITY_COLOR[row.card?.rarity ?? ""] ?? "text-gray-400";
@@ -76,8 +79,14 @@ export function DeckCardRow({
         </span>
         <button
           onClick={() => onIncrement(row.oracle_id, row.is_sideboard)}
-          className="w-5 h-5 rounded text-gray-500 hover:text-white hover:bg-gray-700 transition-colors text-xs leading-none flex items-center justify-center"
-          aria-label={`Add one ${name}`}
+          disabled={atLimit}
+          className="w-5 h-5 rounded text-gray-500 hover:text-white hover:bg-gray-700 transition-colors text-xs leading-none flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500"
+          aria-label={
+            atLimit
+              ? `${name} is at its copy limit for this format`
+              : `Add one ${name}`
+          }
+          title={atLimit ? "At the copy limit for this format" : undefined}
         >
           +
         </button>
