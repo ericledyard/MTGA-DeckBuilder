@@ -1,12 +1,91 @@
 # MTGA DeckBuilder — Project Todo & Status
 
-_Last updated: 2026-08-13 (session 17)_
+_Last updated: 2026-08-13 (session 18)_
 _Branch: main (pushed directly — no PRs since session 15)_
 _Card data: synced 2026-08-13 · 116,622 printings · browsable pool 33,084_
 _Sync schedule: GitHub Actions daily 06:20 UTC (not Vercel — Hobby caps at 60s)_
 _Repo: https://github.com/ericledyard/MTGA-DeckBuilder_
 _Vercel project: ledyard111-8901s-projects/mtga-deckbuilder_
 _Production URL: https://mtga-deckbuilder.vercel.app_
+
+---
+
+## ✅ Session 18 — Current-set sort, Stateless Deck Builder, Commander slot
+
+### ✅ Default browse anchored on the current set (migration 019)
+
+`released_at DESC` sorted by the newest set Scryfall knows about, so page one
+was Star Trek (2026-11-13) while The Hobbit was releasing the next day.
+
+- [x] `current_set_release_date()` — newest expansion/core releasing within 14
+      days. The window covers prerelease weekend and Arena's early drop, since
+      Scryfall publishes only the paper date. Re-evaluated on every sync, so it
+      rolls forward with no code change (~2026-10-02 → Reality Fracture).
+- [x] Order is now current set → older newest-first → unreleased last.
+      Index-backed, 0.37ms for the first page.
+- [x] `presumed_format_legality()` — Scryfall marks every format `not_legal`
+      until a set releases, and migration 018 worked around that by letting any
+      unreleased card pass any format filter (Star Trek Commander precons
+      appeared in Standard searches). Legality is now inferred from product
+      type; real legality rows always win.
+- [x] `cards_playable` prefers a _released_ printing, so a Hobbit reprint is not
+      filed under its Star Trek printing and sunk to the bottom.
+- [x] Sync bug: `sets.available_on_arena` came from whichever printing streamed
+      first — usually a paper-only showcase. The Hobbit was recorded as not on
+      Arena while 241 of its 321 cards were. Now OR'd across the set.
+
+### ✅ Stateless Deck Builder at `/builder`
+
+No login. Decks live in the visitor's browser and survive reloads and lost
+connectivity; the only way out is Export. Built for a friend who did not want
+an account.
+
+- [x] `lib/builder/storage.ts` — versioned localStorage layer. **localStorage,
+      not a cookie**: a deck carries its card display data (~25KB) against a
+      cookie's 4KB ceiling, and none of it is sent to the server anyway.
+- [x] `DeckStore` abstraction rather than forking the ~1,600-line DeckEditor.
+      The editor already held the whole deck in local state with saving as
+      fire-and-forget, so only 7 call sites touched the API. API mode writes
+      deltas exactly as before; local mode writes a snapshot from an effect.
+- [x] `DeckEditor` takes `mode="api" | "local"` and builds the store in a
+      `useMemo` — functions cannot cross the Server Component boundary.
+- [x] Deck panel header reflowed: name on its own line, actions below. Four
+      buttons on one row squeezed "Friend Test Deck" down to "Fri…".
+- [x] Home page feature card next to Card Browser.
+- [x] Verified logged-out: create, add, reload (deck intact), export, and zero
+      `/api/decks` requests.
+
+### ✅ Commander designation + colour identity (migrations 020, 021)
+
+The commander slot previously only rendered when one arrived via import, so
+there was no way to set one by hand.
+
+- [x] "Commander +" slot at the top of the deck list for commander/brawl.
+      Drag a card on, or arm the button and click the next card (Esc cancels).
+- [x] Illegal commanders refused with a reason via `canBeCommander()`.
+- [x] Commander's colour identity filters the browser behind a clearable chip
+      showing its pips; off-colour cards in the deck flag red through the
+      existing validation path.
+- [x] Migration 020 projects `color_identity` + `oracle_text` from every RPC
+      that puts a card in a deck. **Identity is not `colors`** — a card costing
+      {2} with a "{B}:" ability is colourless by `colors` and black by identity.
+- [x] Migration 021 adds `p_color_identity` to `search_cards` as its own
+      parameter; `p_colors` still means "cards I can cast".
+- [x] **Bug fixed:** `lookup_cards_by_set_collector` declared
+      `RETURNS TABLE (... type_line, rarity ...)` but selected them in the
+      opposite order. Postgres matches positionally — verified in production,
+      `(hob, 1)` returned rarity `Creature — Dog` and type_line `common`. Any
+      decklist imported with `(SET) collector` lines carried a garbage type
+      line, silently breaking type grouping and the mana curve's land
+      exclusion. It also filtered on `c.set_type`, which does not exist.
+
+**Known limits (deliberate):** single commander only — no Partner / Friends
+Forever / Background pairs, matching MTGA's Brawl. Decks saved before this
+session have rows without `color_identity`; unknown identity counts as legal
+rather than flagging old cards red.
+
+- [ ] Eric to sanity-check the **logged-in** deck editor after the DeckStore
+      refactor, and that a pre-session-18 Commander deck still opens cleanly.
 
 ---
 
