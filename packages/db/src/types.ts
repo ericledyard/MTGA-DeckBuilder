@@ -407,11 +407,13 @@ export type Database = {
         Returns: {
           cmc: number
           collector_number: string
+          color_identity: string[]
           colors: string[]
           image_uri_normal: string
           mana_cost: string
           name: string
           oracle_id: string
+          oracle_text: string
           rarity: string
           set_code: string
           type_line: string
@@ -443,12 +445,14 @@ export type Database = {
           available_on_arena: boolean
           cmc: number
           collector_number: string
+          color_identity: string[]
           colors: string[]
           id: string
           image_uri_normal: string
           mana_cost: string
           name: string
           oracle_id: string
+          oracle_text: string
           rarity: Database["public"]["Enums"]["card_rarity"]
           set_code: string
           type_line: string
@@ -460,13 +464,15 @@ export type Database = {
           available_on_arena: boolean
           cmc: number
           collector_number: string
+          color_identity: string[]
           colors: string[]
           id: string
           image_uri_normal: string
           mana_cost: string
           name: string
           oracle_id: string
-          rarity: string
+          oracle_text: string
+          rarity: Database["public"]["Enums"]["card_rarity"]
           set_code: string
           type_line: string
         }[]
@@ -477,12 +483,14 @@ export type Database = {
           available_on_arena: boolean
           cmc: number
           collector_number: string
+          color_identity: string[]
           colors: string[]
           id: string
           image_uri_normal: string
           mana_cost: string
           name: string
           oracle_id: string
+          oracle_text: string
           query_name: string
           rarity: Database["public"]["Enums"]["card_rarity"]
           score: number
@@ -524,6 +532,7 @@ export type Database = {
         Returns: {
           available_on_arena: boolean
           cmc: number
+          color_identity: string[]
           colors: string[]
           id: string
           image_uri_art_crop: string
@@ -532,6 +541,7 @@ export type Database = {
           mana_cost: string
           name: string
           oracle_id: string
+          oracle_text: string
           rarity: Database["public"]["Enums"]["card_rarity"]
           set_code: string
           set_name: string

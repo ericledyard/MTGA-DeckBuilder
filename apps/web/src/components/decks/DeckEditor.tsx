@@ -2,8 +2,12 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { validateDeckStructure, FORMAT_RULES } from "@mtga/core";
-import type { Deck, Format } from "@mtga/core";
+import {
+  validateDeckStructure,
+  canBeCommander,
+  FORMAT_RULES,
+} from "@mtga/core";
+import type { Color, Deck, Format } from "@mtga/core";
 import { DeckCardRow, type CardRowData } from "./DeckCardRow";
 import { ManaCurveChart } from "./ManaCurveChart";
 import { ImportDeckModal, type ResolvedImportCard } from "./ImportDeckModal";
@@ -38,6 +42,8 @@ type SearchCard = {
   cmc: number | null;
   type_line: string;
   colors: string[] | null;
+  color_identity: string[] | null;
+  oracle_text: string | null;
   image_uri_normal: string | null;
   rarity: string;
   set_code: string | null;
@@ -150,6 +156,8 @@ function DeckVisualCard({
           cmc: card.cmc,
           type_line: card.type_line,
           colors: card.colors,
+          color_identity: card.color_identity ?? null,
+          oracle_text: card.oracle_text ?? null,
           image_uri_normal: card.image_uri_normal,
           rarity: card.rarity,
           set_code: card.set_code,
@@ -216,6 +224,19 @@ function DeckVisualCard({
       </div>
     </div>
   );
+}
+
+/**
+ * Render a colour identity through ManaSymbols by expressing it as a mana cost.
+ * Ordered WUBRG, the order Magic prints colours in — alphabetical would show
+ * Alela as B/U/W, which reads wrong to anyone who plays.
+ */
+const WUBRG = ["W", "U", "B", "R", "G"];
+function identityAsCost(identity: string[]): string | null {
+  if (identity.length === 0) return "{C}";
+  return WUBRG.filter((c) => identity.includes(c))
+    .map((c) => `{${c}}`)
+    .join("");
 }
 
 function ManaSymbols({
@@ -292,6 +313,17 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
   );
   const [exportOpen, setExportOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  /** Armed by the "Commander +" button: the next card clicked becomes commander. */
+  const [pickingCommander, setPickingCommander] = useState(false);
+  const [commanderError, setCommanderError] = useState<string | null>(null);
+  const [commanderDropActive, setCommanderDropActive] = useState(false);
+  /**
+   * Restrict the browser to the commander's colour identity. On by default once
+   * a commander is set — an off-colour card is unplayable, so offering it is
+   * noise — but clearable, following the same rule as the format chip: a filter
+   * that silently removes cards has to be visible and one click to undo.
+   */
+  const [identityFilterOn, setIdentityFilterOn] = useState(true);
   const [clearedSnapshot, setClearedSnapshot] = useState<CardRowData[] | null>(
     null,
   );
@@ -304,6 +336,31 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
   const searchRef = useRef<AbortController | null>(null);
   const isDraggingRef = useRef(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Commander-derived values. Declared above the search effect because that
+  // effect filters by the commander's colour identity.
+  const requiresCommander =
+    FORMAT_RULES[deck.format as Format]?.requiresCommander ?? false;
+  const commanderCards = deckCards.filter((c) => c.is_commander);
+  const commanderIdentity = [
+    ...new Set(
+      commanderCards.flatMap((c) => (c.card?.color_identity ?? []) as Color[]),
+    ),
+  ].sort();
+  // Depend on the joined string, not the array: a fresh array every render
+  // would restart the search on every keystroke.
+  const commanderIdentityKey = commanderIdentity.join(",");
+
+  // Escape cancels commander-pick mode. Armed only while picking, so it does
+  // not compete with the card-preview overlay's own Escape handling.
+  useEffect(() => {
+    if (!pickingCommander) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPickingCommander(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pickingCommander]);
 
   // Snapshot the deck wherever the store wants it. The API store no-ops here
   // and writes deltas from the handlers instead; the browser-local store uses
@@ -343,6 +400,8 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
     arenaOnly,
     ownedOnly,
     formatFilter,
+    identityFilterOn,
+    commanderIdentityKey,
     cmcValues,
     rarities,
     filterTypes,
@@ -383,6 +442,9 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
     if (arenaOnly) params.set("arena", "1");
     if (ownedOnly) params.set("owned_only", "1");
     if (formatFilter) params.set("format", formatFilter);
+    if (identityFilterOn && commanderIdentityKey) {
+      params.set("identity", commanderIdentityKey);
+    }
     if (cmcValues.length) params.set("cmc", cmcValues.join(","));
     if (rarities.length) params.set("rarities", rarities.join(","));
     if (filterTypes.length) params.set("types", filterTypes.join(","));
@@ -425,6 +487,8 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
     arenaOnly,
     ownedOnly,
     formatFilter,
+    identityFilterOn,
+    commanderIdentityKey,
     cmcValues,
     rarities,
     filterTypes,
@@ -446,7 +510,6 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
   }, [filtersExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived
-  const commanderCards = deckCards.filter((c) => c.is_commander);
   const mainboard = deckCards.filter((c) => !c.is_sideboard && !c.is_commander);
   const sideboard = deckCards.filter((c) => c.is_sideboard);
   const visibleCards = activeTab === "mainboard" ? mainboard : sideboard;
@@ -477,6 +540,7 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
         isSideboard: c.is_sideboard,
         isCompanion: c.is_companion,
         isCommander: c.is_commander,
+        colorIdentity: c.card?.color_identity as Color[] | undefined,
       })),
   };
   const validationErrors = validateDeckStructure(deckForValidation);
@@ -562,7 +626,82 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
     });
   }
 
+  /**
+   * Promote a card to the commander slot.
+   *
+   * Rejects anything the rules do not allow rather than accepting it quietly —
+   * a deck that looks fine here and bounces out of MTGA is worse than a refusal
+   * with a reason. Replaces any existing commander: MTGA's Brawl and this
+   * editor both assume a single commander, so Partner pairs are out of scope.
+   */
+  function assignCommander(card: SearchCard) {
+    if (
+      !canBeCommander({
+        typeLine: card.type_line,
+        oracleText: card.oracle_text,
+      })
+    ) {
+      setCommanderError(`${card.name} can't be a commander`);
+      setPickingCommander(false);
+      return;
+    }
+
+    setCommanderError(null);
+    setPickingCommander(false);
+    if (clearedSnapshot) setClearedSnapshot(null);
+
+    const row: CardRowData = {
+      oracle_id: card.oracle_id,
+      quantity: 1,
+      is_sideboard: false,
+      is_companion: false,
+      is_commander: true,
+      card: {
+        name: card.name,
+        mana_cost: card.mana_cost,
+        cmc: card.cmc ?? 0,
+        type_line: card.type_line,
+        colors: card.colors ?? [],
+        color_identity: card.color_identity ?? [],
+        oracle_text: card.oracle_text,
+        image_uri_normal: card.image_uri_normal,
+        rarity: card.rarity,
+        set_code: card.set_code ?? null,
+        collector_number: null,
+      },
+    };
+
+    // Drop the previous commander and any copy of this card sitting in the
+    // mainboard — it occupies the commander slot now, not both.
+    const previous = deckCards.filter((c) => c.is_commander);
+    setDeckCards((prev) => [
+      ...prev.filter(
+        (c) => !c.is_commander && !(c.oracle_id === card.oracle_id),
+      ),
+      row,
+    ]);
+
+    for (const old of previous) {
+      store.setQuantity({ ...old, quantity: 0 });
+    }
+    store.setQuantity({ ...row, quantity: 0, is_commander: false });
+    store.addCards([row]);
+  }
+
+  function clearCommander() {
+    setCommanderError(null);
+    const current = deckCards.filter((c) => c.is_commander);
+    setDeckCards((prev) => prev.filter((c) => !c.is_commander));
+    for (const row of current) {
+      store.setQuantity({ ...row, quantity: 0 });
+    }
+  }
+
   function addCardFromSearch(card: SearchCard, isSideboardOverride?: boolean) {
+    if (pickingCommander) {
+      assignCommander(card);
+      return;
+    }
     if (clearedSnapshot) setClearedSnapshot(null);
     const isSideboard = isSideboardOverride ?? activeTab === "sideboard";
     const existing = deckCards.find(
@@ -596,6 +735,8 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
             cmc: card.cmc ?? 0,
             type_line: card.type_line,
             colors: card.colors ?? [],
+            color_identity: card.color_identity ?? [],
+            oracle_text: card.oracle_text,
             image_uri_normal: card.image_uri_normal,
             rarity: card.rarity,
             set_code: card.set_code ?? null,
@@ -664,6 +805,22 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
     }
   }
 
+  function handleCommanderDrop(e: React.DragEvent) {
+    e.preventDefault();
+    // The deck panel has its own drop handler; without this the card would
+    // also land in the mainboard.
+    e.stopPropagation();
+    setCommanderDropActive(false);
+    try {
+      const card: SearchCard = JSON.parse(
+        e.dataTransfer.getData("application/json"),
+      );
+      assignCommander(card);
+    } catch {
+      // ignore malformed data
+    }
+  }
+
   function handleExport() {
     setExportOpen(true);
   }
@@ -718,6 +875,8 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
         cmc: c.cmc,
         type_line: c.type_line,
         colors: c.colors,
+        color_identity: c.color_identity,
+        oracle_text: c.oracle_text,
         image_uri_normal: c.image_uri_normal,
         rarity: c.rarity,
         set_code: c.set_code ?? null,
@@ -817,6 +976,30 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
                     <span aria-hidden="true" className="text-amber-400/80">
                       ✕
                     </span>
+                  </button>
+                )}
+
+                {/* Colour identity chip — appears once a commander is set. */}
+                {commanderIdentityKey && identityFilterOn && (
+                  <button
+                    onClick={() => setIdentityFilterOn(false)}
+                    aria-label={`Showing only cards inside your commander's colour identity (${commanderIdentity.join("")}). Click to show all colours.`}
+                    title="Showing cards inside your commander's colour identity. Click to show all."
+                    className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border border-amber-500/60 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 transition-colors"
+                  >
+                    <ManaSymbols cost={identityAsCost(commanderIdentity)} />
+                    <span aria-hidden="true" className="text-amber-400/80">
+                      ✕
+                    </span>
+                  </button>
+                )}
+                {commanderIdentityKey && !identityFilterOn && (
+                  <button
+                    onClick={() => setIdentityFilterOn(true)}
+                    aria-label="Showing every colour. Click to restrict to your commander's colour identity."
+                    className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border border-gray-700 text-gray-500 hover:border-amber-500/60 hover:text-amber-400 transition-colors"
+                  >
+                    All colours
                   </button>
                 )}
 
@@ -1490,27 +1673,86 @@ export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
             </div>
           </div>
 
-          {/* Commander slot */}
-          {commanderCards.length > 0 && (
-            <div className="shrink-0 border-b border-amber-900/40 bg-amber-950/20">
+          {/* Commander slot — always present for formats that need one, so
+              there is somewhere obvious to put a commander. Drop a card on it,
+              or arm the button and click the next card. */}
+          {(requiresCommander || commanderCards.length > 0) && (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = "copy";
+                setCommanderDropActive(true);
+              }}
+              onDragLeave={() => setCommanderDropActive(false)}
+              onDrop={handleCommanderDrop}
+              className={`shrink-0 border-b transition-colors ${
+                commanderDropActive
+                  ? "border-amber-400 bg-amber-500/20"
+                  : "border-amber-900/40 bg-amber-950/20"
+              }`}
+            >
               <div className="flex items-center gap-2 px-3 py-1">
                 <span className="text-[10px] uppercase tracking-widest text-amber-600 font-semibold">
                   Commander
                 </span>
                 <div className="flex-1 h-px bg-amber-900/30" />
+                {commanderCards.length > 0 ? (
+                  <button
+                    onClick={clearCommander}
+                    aria-label="Remove commander"
+                    className="text-[10px] text-amber-600/80 hover:text-amber-400 transition-colors"
+                  >
+                    Clear
+                  </button>
+                ) : null}
               </div>
-              {commanderCards.map((row) => (
-                <DeckCardRow
-                  key={`${row.oracle_id}-commander`}
-                  row={row}
-                  onIncrement={() => {}}
-                  onDecrement={(id) => upsertCard(id, -1, false, true)}
-                  onCardClick={(uri, name) =>
-                    setPreviewCard({ imageUri: uri, name })
-                  }
-                  isIllegal={!!row.card && illegalCards.has(row.card.name)}
-                />
-              ))}
+
+              {commanderCards.length === 0 ? (
+                <div className="px-3 pb-2">
+                  <button
+                    onClick={() => {
+                      setCommanderError(null);
+                      setPickingCommander((v) => !v);
+                    }}
+                    aria-pressed={pickingCommander}
+                    className={`w-full py-2 rounded border border-dashed text-xs transition-colors ${
+                      pickingCommander
+                        ? "border-amber-400 bg-amber-500/20 text-amber-200"
+                        : "border-amber-700/50 text-amber-600 hover:border-amber-500 hover:text-amber-400"
+                    }`}
+                  >
+                    {pickingCommander
+                      ? "Click a card to set it as commander — Esc to cancel"
+                      : "Commander +"}
+                  </button>
+                  <p className="mt-1 text-[10px] leading-snug text-gray-600">
+                    Drag a card here, or press the button and click one.
+                  </p>
+                </div>
+              ) : (
+                commanderCards.map((row) => (
+                  <DeckCardRow
+                    key={`${row.oracle_id}-commander`}
+                    row={row}
+                    onIncrement={() => {}}
+                    onDecrement={(id) => upsertCard(id, -1, false, true)}
+                    onCardClick={(uri, name) =>
+                      setPreviewCard({ imageUri: uri, name })
+                    }
+                    isIllegal={!!row.card && illegalCards.has(row.card.name)}
+                  />
+                ))
+              )}
+
+              {commanderError && (
+                <p
+                  role="alert"
+                  className="px-3 pb-2 text-[11px] text-red-400 leading-snug"
+                >
+                  {commanderError}
+                </p>
+              )}
             </div>
           )}
 

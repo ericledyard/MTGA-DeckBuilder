@@ -72,6 +72,13 @@ export interface DeckCard {
   isSideboard: boolean;
   isCompanion: boolean;
   isCommander: boolean;
+  /**
+   * Colour identity, for the Commander/Brawl rule that every card must sit
+   * inside the commander's identity. Optional: callers that never validate a
+   * singleton-commander deck have no reason to carry it, and an absent value
+   * is treated as "unknown", never as "illegal".
+   */
+  colorIdentity?: Color[];
 }
 
 export interface Deck {

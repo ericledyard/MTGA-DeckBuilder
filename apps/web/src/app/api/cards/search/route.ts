@@ -26,6 +26,11 @@ export async function GET(req: NextRequest) {
     searchParams.get("rarities")?.split(",").filter(Boolean) ?? null;
   const types = searchParams.get("types")?.split(",").filter(Boolean) ?? null;
   const setCodes = searchParams.get("sets")?.split(",").filter(Boolean) ?? null;
+  // Commander/Brawl colour identity. Distinct from `colors`: identity is what
+  // the deckbuilding rule is written against, and the two differ for cards with
+  // coloured activated abilities.
+  const colorIdentity =
+    searchParams.get("identity")?.split(",").filter(Boolean) ?? null;
 
   // Default browse order is newest sets first. Sorting by (cmc, name) put a
   // blank placeholder land and nine World Championship advertisements on page
@@ -72,6 +77,7 @@ export async function GET(req: NextRequest) {
           p_owned_only: ownedOnly && !!userId,
           p_user_id: userId,
           p_sort: sort,
+          p_color_identity: colorIdentity?.length ? colorIdentity : undefined,
         })
         .abortSignal(AbortSignal.timeout(SEARCH_TIMEOUT_MS)),
     );

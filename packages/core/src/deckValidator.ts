@@ -1,4 +1,4 @@
-import type { Deck, DeckCard, Format } from "./types/card";
+import type { Color, Deck, DeckCard, Format } from "./types/card";
 
 export function canBeCommander(card: {
   typeLine: string;
@@ -14,6 +14,23 @@ export function canBeCommander(card: {
   return isLegendary && (isCreatureOrPlaneswalker || hasCommanderText);
 }
 
+/**
+ * A card may be played in a Commander/Brawl deck only if its colour identity is
+ * a subset of the commander's. Colourless cards fit any commander, which falls
+ * out of the subset test for free.
+ *
+ * An unknown (undefined) card identity returns true. The rule exists to catch
+ * real mistakes, and flagging a card red because its data has not loaded is
+ * worse than missing one that is genuinely off-colour.
+ */
+export function isWithinColorIdentity(
+  cardIdentity: Color[] | undefined,
+  commanderIdentity: Color[],
+): boolean {
+  if (!cardIdentity) return true;
+  return cardIdentity.every((c) => commanderIdentity.includes(c));
+}
+
 export interface ValidationError {
   type:
     | "deck_size"
@@ -22,7 +39,8 @@ export interface ValidationError {
     | "singleton"
     | "format_illegal"
     | "arena_unavailable"
-    | "missing_commander";
+    | "missing_commander"
+    | "color_identity";
   message: string;
   cardName?: string;
 }
@@ -210,6 +228,34 @@ export function validateDeckStructure(deck: Deck): ValidationError[] {
           : `${name} appears ${count} times — maximum is ${rules.maxCopies}`,
         cardName: name,
       });
+    }
+  }
+
+  // Colour identity. Only meaningful once a commander is actually set — with no
+  // commander there is nothing to measure against, and "missing_commander"
+  // above already says what is wrong.
+  if (rules.requiresCommander) {
+    const commanders = deck.cards.filter((c) => c.isCommander);
+    const commanderIdentity = [
+      ...new Set(commanders.flatMap((c) => c.colorIdentity ?? [])),
+    ];
+    const identityKnown = commanders.some((c) => c.colorIdentity !== undefined);
+
+    if (commanders.length > 0 && identityKnown) {
+      for (const card of deck.cards) {
+        if (card.isCommander) continue;
+        if (isWithinColorIdentity(card.colorIdentity, commanderIdentity)) {
+          continue;
+        }
+        const offending = (card.colorIdentity ?? []).filter(
+          (c) => !commanderIdentity.includes(c),
+        );
+        errors.push({
+          type: "color_identity",
+          message: `${card.name} is outside your commander's colour identity (${offending.join("")})`,
+          cardName: card.name,
+        });
+      }
     }
   }
 

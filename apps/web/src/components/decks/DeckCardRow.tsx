@@ -14,6 +14,15 @@ export interface CardRowData {
     cmc: number;
     type_line: string;
     colors: string[];
+    /**
+     * Commander/Brawl colour rules key off identity, not `colors` — a card
+     * costing {2} with a "{B}:" ability is colourless by `colors` and black by
+     * identity. Optional because decks saved before this existed have rows
+     * without it; treated as unknown, never as illegal.
+     */
+    color_identity?: string[];
+    /** Needed to spot "can be your commander" cards, e.g. Backgrounds. */
+    oracle_text?: string | null;
     image_uri_normal: string | null;
     rarity: string;
     set_code: string | null;

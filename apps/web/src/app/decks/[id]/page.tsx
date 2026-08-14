@@ -51,6 +51,9 @@ export default async function DeckPage({ params }: Props) {
           cmc: number;
           type_line: string;
           colors: string[];
+          // Commander/Brawl colour rules need identity, not colors.
+          color_identity: string[];
+          oracle_text: string | null;
           image_uri_normal: string | null;
           rarity: string;
           set_code: string | null;
