@@ -9,6 +9,12 @@ const FEATURES = [
     desc: "Search 95k+ cards with MTGA availability and format legality",
   },
   {
+    href: "/builder",
+    icon: "⚡",
+    title: "Stateless Deck Builder",
+    desc: "YOU CAN ONLY EXPORT THE DECKLIST but you will not be able to save it without logging in.",
+  },
+  {
     href: "/decks",
     icon: "📋",
     title: "Deck Builder",

@@ -59,5 +59,5 @@ export default async function DeckPage({ params }: Props) {
     })),
   };
 
-  return <DeckEditor deck={deckWithCards} />;
+  return <DeckEditor deck={deckWithCards} mode="api" />;
 }

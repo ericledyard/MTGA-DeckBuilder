@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { validateDeckStructure, FORMAT_RULES } from "@mtga/core";
 import type { Deck, Format } from "@mtga/core";
@@ -8,6 +8,10 @@ import { DeckCardRow, type CardRowData } from "./DeckCardRow";
 import { ManaCurveChart } from "./ManaCurveChart";
 import { ImportDeckModal, type ResolvedImportCard } from "./ImportDeckModal";
 import { ExportDeckModal } from "./ExportDeckModal";
+import {
+  createApiDeckStore,
+  createLocalDeckStore,
+} from "@/lib/decks/deckStore";
 
 interface DeckEditorProps {
   deck: {
@@ -17,6 +21,13 @@ interface DeckEditorProps {
     description: string | null;
     deck_cards: CardRowData[];
   };
+  /**
+   * Where changes are written: `api` saves to the account's deck, `local`
+   * keeps them in this browser for the Stateless Deck Builder. Passed as a
+   * plain string rather than a store object because the deck page is a Server
+   * Component, and functions cannot cross that boundary.
+   */
+  mode?: "api" | "local";
 }
 
 type SearchCard = {
@@ -232,8 +243,17 @@ function ManaSymbols({
   );
 }
 
-export function DeckEditor({ deck }: DeckEditorProps) {
+export function DeckEditor({ deck, mode = "api" }: DeckEditorProps) {
   const router = useRouter();
+  // Memoised: the snapshot effect below depends on `store`, so a fresh object
+  // each render would re-run it on every keystroke.
+  const store = useMemo(
+    () =>
+      mode === "local"
+        ? createLocalDeckStore(deck.id)
+        : createApiDeckStore(deck.id),
+    [mode, deck.id],
+  );
   const [deckCards, setDeckCards] = useState<CardRowData[]>(deck.deck_cards);
   const [activeTab, setActiveTab] = useState<"mainboard" | "sideboard">(
     "mainboard",
@@ -284,6 +304,13 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   const searchRef = useRef<AbortController | null>(null);
   const isDraggingRef = useRef(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Snapshot the deck wherever the store wants it. The API store no-ops here
+  // and writes deltas from the handlers instead; the browser-local store uses
+  // this so what is stored is always exactly what is rendered.
+  useEffect(() => {
+    store.persist(deckCards);
+  }, [deckCards, store]);
 
   // Debounce text inputs — update debounced values 350ms after typing stops
   useEffect(() => {
@@ -525,16 +552,14 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       );
     }
 
-    fetch(`/api/decks/${deck.id}/cards`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        oracle_id: oracleId,
-        quantity: newQty,
-        is_sideboard: isSideboard,
-        is_commander: isCommander,
-      }),
-    }).catch(() => {});
+    store.setQuantity({
+      oracle_id: oracleId,
+      quantity: newQty,
+      is_sideboard: isSideboard,
+      is_companion: false,
+      is_commander: isCommander,
+      card: existing?.card ?? null,
+    });
   }
 
   function addCardFromSearch(card: SearchCard, isSideboardOverride?: boolean) {
@@ -579,15 +604,26 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         },
       ]);
     }
-    fetch(`/api/decks/${deck.id}/cards`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    store.addCards([
+      {
         oracle_id: card.oracle_id,
         quantity: 1,
         is_sideboard: isSideboard,
-      }),
-    }).catch(() => {});
+        is_companion: false,
+        is_commander: false,
+        card: {
+          name: card.name,
+          mana_cost: card.mana_cost,
+          cmc: card.cmc ?? 0,
+          type_line: card.type_line,
+          colors: card.colors ?? [],
+          image_uri_normal: card.image_uri_normal,
+          rarity: card.rarity,
+          set_code: card.set_code ?? null,
+          collector_number: null,
+        },
+      },
+    ]);
   }
 
   // Drag-and-drop handlers
@@ -633,10 +669,11 @@ export function DeckEditor({ deck }: DeckEditorProps) {
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete "${deck.name}"? This cannot be undone.`)) return;
+    const verb = store.kind === "local" ? "Discard" : "Delete";
+    if (!confirm(`${verb} "${deck.name}"? This cannot be undone.`)) return;
     setDeleting(true);
-    await fetch(`/api/decks/${deck.id}`, { method: "DELETE" });
-    router.push("/decks");
+    await store.deleteDeck();
+    router.push(store.listHref);
     router.refresh();
   }
 
@@ -650,7 +687,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
       return;
     setClearedSnapshot(deckCards);
     setDeckCards([]);
-    fetch(`/api/decks/${deck.id}/cards`, { method: "DELETE" }).catch(() => {});
+    store.clearCards().catch(() => {});
   }
 
   function handleUndoClear() {
@@ -659,22 +696,13 @@ export function DeckEditor({ deck }: DeckEditorProps) {
     setClearedSnapshot(null);
     setDeckCards(snapshot);
     for (const card of snapshot) {
-      fetch(`/api/decks/${deck.id}/cards`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          oracle_id: card.oracle_id,
-          quantity: card.quantity,
-          is_sideboard: card.is_sideboard,
-          is_commander: card.is_commander,
-        }),
-      }).catch(() => {});
+      store.setQuantity(card);
     }
   }
 
   async function handleImport(cards: ResolvedImportCard[], replace: boolean) {
     if (replace && deckCards.length > 0) {
-      await fetch(`/api/decks/${deck.id}/cards`, { method: "DELETE" });
+      await store.clearCards();
       setDeckCards([]);
     }
 
@@ -699,18 +727,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
 
     setDeckCards((prev) => (replace ? newRows : [...prev, ...newRows]));
 
-    for (const c of cards) {
-      fetch(`/api/decks/${deck.id}/cards`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          oracle_id: c.oracle_id,
-          quantity: c.quantity,
-          is_sideboard: c.isSideboard,
-          is_commander: c.isCommander,
-        }),
-      }).catch(() => {});
-    }
+    store.addCards(newRows);
 
     setImportOpen(false);
   }
@@ -1372,7 +1389,10 @@ export function DeckEditor({ deck }: DeckEditorProps) {
         >
           {/* Deck header */}
           <div className="shrink-0 px-4 pt-3 pb-2 border-b border-gray-800">
-            <div className="flex items-start justify-between gap-2 mb-1">
+            {/* Name above, actions below. The panel is only ~18rem wide and
+                four buttons on the same row squeeze a normal deck name down to
+                a few characters. */}
+            <div className="mb-1 space-y-1.5">
               <div className="min-w-0">
                 <h1 className="font-bold text-gray-100 truncate leading-tight">
                   {deck.name}
@@ -1381,7 +1401,7 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                   {deck.format}
                 </span>
               </div>
-              <div className="flex gap-1.5 shrink-0">
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   onClick={handleExport}
                   className="px-2 py-1 text-[11px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
@@ -1413,12 +1433,24 @@ export function DeckEditor({ deck }: DeckEditorProps) {
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
+                  aria-label={
+                    store.kind === "local" ? "Discard deck" : "Delete deck"
+                  }
                   className="px-2 py-1 text-[11px] bg-red-950/40 hover:bg-red-900/60 text-red-400 rounded transition-colors"
                 >
-                  Del
+                  {store.kind === "local" ? "Discard" : "Del"}
                 </button>
               </div>
             </div>
+
+            {store.kind === "local" && (
+              <p className="mb-2 px-2 py-1.5 text-[11px] leading-snug rounded bg-amber-500/10 border border-amber-500/30 text-amber-300">
+                Not saved to an account. This deck lives in this browser only —
+                clearing site data loses it. Use{" "}
+                <strong className="font-semibold">Export</strong> when you are
+                done.
+              </p>
+            )}
 
             {/* Card count + validation */}
             {(() => {
