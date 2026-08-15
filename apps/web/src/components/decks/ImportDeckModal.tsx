@@ -197,6 +197,13 @@ export function ImportDeckModal({
           cmc: matched.cmc,
           type_line: matched.type_line,
           colors: matched.colors,
+          // Migration 020 exposes these on the lookup RPCs precisely so the
+          // rules can be enforced: identity drives the commander colour check,
+          // and oracle text carries a card's own copy allowance ("any number
+          // of cards named Relentless Rats"). Dropping them here made an
+          // imported deck silently exempt from both.
+          color_identity: matched.color_identity,
+          oracle_text: matched.oracle_text ?? null,
           image_uri_normal: matched.image_uri_normal,
           rarity: matched.rarity,
           set_code: matched.set_code ?? null,
